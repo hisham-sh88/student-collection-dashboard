@@ -1,0 +1,837 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Student Collection Dashboard</title>
+<link rel="icon" type="image/png" href="./assets/mdx-logo.png" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="./styles.css" />
+
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone@7/babel.min.js" crossorigin></script>
+<script src="https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js" crossorigin></script>
+</head>
+<body>
+<div id="root">
+  <div class="loading-shell">Loading Student Collection Dashboard…</div>
+</div>
+
+<script type="text/babel" data-presets="react">
+const { useState, useMemo } = React;
+
+/* ============================== lib/format ============================== */
+
+function fmt(n) {
+  return Math.round(n || 0).toLocaleString("en-US");
+}
+
+function initials(name) {
+  return String(name || "")
+    .split(" ")
+    .filter(Boolean)
+    .map((w) => w[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+}
+
+/* ============================== lib/parse ============================== */
+
+const ALIASES = {
+  id: ["studentid", "id", "studentnumber", "studentno", "stuid", "matricno", "sid", "studentref"],
+  name: ["name", "studentname", "fullname"],
+  programme: ["programme", "program", "course", "coursename", "programmename"],
+  level: ["level", "studylevel", "studentlevel"],
+  year: ["year", "yearofstudy", "yr", "academicyear"],
+  status: ["status", "enrolmentstatus", "enrollmentstatus", "regstatus"],
+  email: ["email", "emailaddress", "studentemail"],
+  mobile: ["mobile", "phone", "contact", "mobilenumber", "phonenumber", "telephone"],
+  amount: ["amount", "paymentamount", "paidamount", "collection", "collectionamount", "amountpaid", "payment"],
+  balance: ["outstanding", "outstandingbalance", "balance", "totalbalance", "amountdue", "balancedue"],
+  date: ["date", "paymentdate", "postingdate", "transactiondate"],
+};
+
+function normalizeHeader(h) {
+  return String(h || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+function buildHeaderIndex(row) {
+  const idx = {};
+  Object.keys(row).forEach((key) => {
+    idx[normalizeHeader(key)] = key;
+  });
+  return idx;
+}
+
+function findColumn(headerIdx, field) {
+  const aliases = ALIASES[field];
+  for (const alias of aliases) {
+    if (headerIdx[alias] !== undefined) return headerIdx[alias];
+  }
+  return null;
+}
+
+async function fileToRows(file) {
+  const buf = await file.arrayBuffer();
+  const wb = XLSX.read(buf, { type: "array", cellDates: true });
+  const sheet = wb.Sheets[wb.SheetNames[0]];
+  return XLSX.utils.sheet_to_json(sheet, { defval: "" });
+}
+
+function toNumber(v) {
+  if (typeof v === "number") return v;
+  const n = parseFloat(String(v).replace(/[^0-9.-]/g, ""));
+  return isNaN(n) ? 0 : n;
+}
+
+function toDate(v) {
+  if (v instanceof Date && !isNaN(v)) return v;
+  const d = new Date(v);
+  return isNaN(d) ? null : d;
+}
+
+function normalizeLevel(raw) {
+  const s = String(raw || "").toLowerCase();
+  if (s.includes("found")) return { level: "Foundation", levelShort: "FDN" };
+  if (s.includes("postgrad") || s.includes("pg") || s.includes("master")) return { level: "Postgraduate", levelShort: "PG" };
+  if (s.includes("undergrad") || s.includes("ug") || s.includes("bachelor")) return { level: "Undergraduate", levelShort: "UG" };
+  const clean = String(raw || "").trim();
+  if (!clean) return { level: "Unspecified", levelShort: "—" };
+  return { level: clean, levelShort: clean.slice(0, 3).toUpperCase() };
+}
+
+function normalizeStatus(raw) {
+  const s = String(raw || "").toLowerCase();
+  if (s.includes("enrol") || s.includes("active") || s.startsWith("es")) return { code: "ES", label: "ES Enrolled" };
+  if (s.includes("withdraw") || s.startsWith("wd")) return { code: "WD", label: "WD Withdrawn" };
+  if (s.includes("interrupt") || s.includes("suspend") || s.startsWith("in")) return { code: "IN", label: "IN Interrupted" };
+  const clean = String(raw || "").trim();
+  if (!clean) return { code: "UNK", label: "Unspecified" };
+  return { code: clean.slice(0, 2).toUpperCase(), label: clean };
+}
+
+const BADGE = {
+  ES: { bg: "#d9ecdc", fg: "#2c6b3c" },
+  WD: { bg: "#f6ecc8", fg: "#8a6b16" },
+  IN: { bg: "#e4e4e0", fg: "#5a5a55" },
+  UNK: { bg: "#e4e4e0", fg: "#5a5a55" },
+};
+
+function badgeFor(code) {
+  return BADGE[code] || BADGE.UNK;
+}
+
+async function parseEnrolled(file) {
+  const rows = await fileToRows(file);
+  if (!rows.length) throw new Error(`${file.name} has no rows.`);
+  const idx = buildHeaderIndex(rows[0]);
+  const idCol = findColumn(idx, "id");
+  const nameCol = findColumn(idx, "name");
+  if (!idCol || !nameCol) {
+    throw new Error(`Couldn't find a student ID and name column in ${file.name}.`);
+  }
+  const programmeCol = findColumn(idx, "programme");
+  const levelCol = findColumn(idx, "level");
+  const yearCol = findColumn(idx, "year");
+  const statusCol = findColumn(idx, "status");
+  const emailCol = findColumn(idx, "email");
+  const mobileCol = findColumn(idx, "mobile");
+
+  const roster = new Map();
+  rows.forEach((r) => {
+    const id = String(r[idCol]).trim();
+    if (!id) return;
+    const { level, levelShort } = normalizeLevel(levelCol ? r[levelCol] : "");
+    const { code, label } = normalizeStatus(statusCol ? r[statusCol] : "");
+    roster.set(id, {
+      id,
+      name: String(r[nameCol] || "").trim() || id,
+      programme: programmeCol ? String(r[programmeCol]).trim() : "—",
+      level,
+      levelShort,
+      year: yearCol ? toNumber(r[yearCol]) || String(r[yearCol]).trim() || 1 : 1,
+      status: code,
+      statusLabel: label,
+      email: emailCol ? String(r[emailCol]).trim() : "—",
+      mobile: mobileCol ? String(r[mobileCol]).trim() : "—",
+    });
+  });
+  return roster;
+}
+
+async function parseAccounts(file) {
+  const rows = await fileToRows(file);
+  if (!rows.length) throw new Error(`${file.name} has no rows.`);
+  const idx = buildHeaderIndex(rows[0]);
+  const idCol = findColumn(idx, "id");
+  const amountCol = findColumn(idx, "amount");
+  if (!idCol || !amountCol) {
+    throw new Error(`Couldn't find a student ID and payment amount column in ${file.name}.`);
+  }
+  const dateCol = findColumn(idx, "date");
+
+  const collection = new Map();
+  const payments = [];
+  rows.forEach((r) => {
+    const id = String(r[idCol]).trim();
+    if (!id) return;
+    const amount = toNumber(r[amountCol]);
+    collection.set(id, (collection.get(id) || 0) + amount);
+    const date = dateCol ? toDate(r[dateCol]) : null;
+    payments.push({ id, amount, date });
+  });
+  return { collection, payments, hasDates: payments.some((p) => p.date) };
+}
+
+async function parseBalance(file) {
+  const rows = await fileToRows(file);
+  if (!rows.length) throw new Error(`${file.name} has no rows.`);
+  const idx = buildHeaderIndex(rows[0]);
+  const idCol = findColumn(idx, "id");
+  const balanceCol = findColumn(idx, "balance");
+  if (!idCol || !balanceCol) {
+    throw new Error(`Couldn't find a student ID and outstanding balance column in ${file.name}.`);
+  }
+  const outstanding = new Map();
+  rows.forEach((r) => {
+    const id = String(r[idCol]).trim();
+    if (!id) return;
+    outstanding.set(id, (outstanding.get(id) || 0) + toNumber(r[balanceCol]));
+  });
+  return outstanding;
+}
+
+function mergeReports({ roster, collection, outstanding }) {
+  const ids = new Set([...roster.keys(), ...collection.keys(), ...outstanding.keys()]);
+  const students = [];
+  ids.forEach((id) => {
+    const base = roster.get(id) || {
+      id,
+      name: id,
+      programme: "—",
+      level: "Unspecified",
+      levelShort: "—",
+      year: 1,
+      status: "UNK",
+      statusLabel: "Unspecified",
+      email: "—",
+      mobile: "—",
+    };
+    students.push({
+      ...base,
+      coll: collection.get(id) || 0,
+      out: outstanding.get(id) || 0,
+    });
+  });
+  students.sort((a, b) => a.name.localeCompare(b.name));
+  return students;
+}
+
+/* ============================== lib/trend ============================== */
+
+function isoWeek(d) {
+  const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  const dayNum = date.getUTCDay() || 7;
+  date.setUTCDate(date.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
+  const week = Math.ceil(((date - yearStart) / 86400000 + 1) / 7);
+  return { week, year: date.getUTCFullYear() };
+}
+
+function groupSum(payments, keyFn, sortKeyFn, limit) {
+  const groups = new Map();
+  payments.forEach((p) => {
+    if (!p.date) return;
+    const key = keyFn(p.date);
+    if (!groups.has(key)) groups.set(key, { label: key, value: 0, sort: sortKeyFn(p.date) });
+    groups.get(key).value += p.amount;
+  });
+  const arr = Array.from(groups.values()).sort((a, b) => a.sort - b.sort);
+  return arr.slice(Math.max(0, arr.length - limit));
+}
+
+function computeTrend(payments, range) {
+  const withDates = payments.filter((p) => p.date);
+  if (!withDates.length) return { points: [], caption: "No payment dates found in the SAP Student Accounts Report." };
+
+  if (range === "Monthly") {
+    const points = groupSum(
+      withDates,
+      (d) => d.toLocaleString("en-US", { month: "short", year: "numeric" }),
+      (d) => d.getFullYear() * 12 + d.getMonth(),
+      12
+    );
+    return { points, caption: "Collection by month. AED." };
+  }
+  if (range === "Weekly") {
+    const points = groupSum(
+      withDates,
+      (d) => "Wk " + isoWeek(d).week,
+      (d) => { const w = isoWeek(d); return w.year * 100 + w.week; },
+      12
+    );
+    return { points, caption: "Collection by week. AED." };
+  }
+  const points = groupSum(
+    withDates,
+    (d) => d.toLocaleString("en-US", { day: "numeric", month: "short" }),
+    (d) => d.getTime(),
+    14
+  );
+  return { points, caption: "Collection by day. AED." };
+}
+
+/* ============================== lib/exportExcel ============================== */
+
+function exportStudentsToExcel(students, filename) {
+  const rows = students.map((s) => ({
+    "Student ID": s.id,
+    "Name": s.name,
+    "Programme": s.programme,
+    "Level": s.level,
+    "Year": s.year,
+    "Status": s.statusLabel,
+    "Email": s.email,
+    "Mobile": s.mobile,
+    "Collection (AED)": s.coll,
+    "Outstanding (AED)": s.out,
+  }));
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.json_to_sheet(rows);
+  XLSX.utils.book_append_sheet(wb, ws, "Students");
+  XLSX.writeFile(wb, filename);
+}
+
+/* ============================== lib/sampleWorkbooks ============================== */
+
+const SAMPLE_STUDENTS = [
+  { id: "M00812441", name: "Ahmed Al Mansouri", programme: "Foundation Business", level: "Foundation", year: 1, status: "ES Enrolled", email: "a.almansouri@mdx.ac.ae", mobile: "+971 50 224 8817" },
+  { id: "M00790215", name: "Fatima Al Zahra", programme: "BA Business Management", level: "Undergraduate", year: 2, status: "ES Enrolled", email: "f.alzahra@mdx.ac.ae", mobile: "+971 55 610 3392" },
+  { id: "M00831907", name: "Mohammed Al Khouri", programme: "BSc Computer Science", level: "Undergraduate", year: 1, status: "WD Withdrawn", email: "m.alkhouri@mdx.ac.ae", mobile: "+971 52 447 1206" },
+  { id: "M00764330", name: "Sarah Al Qassimi", programme: "MSc Data Science", level: "Postgraduate", year: 1, status: "ES Enrolled", email: "s.alqassimi@mdx.ac.ae", mobile: "+971 50 903 7714" },
+  { id: "M00701558", name: "Hassan Al Falasi", programme: "BSc Accounting & Finance", level: "Undergraduate", year: 3, status: "IN Interrupted", email: "h.alfalasi@mdx.ac.ae", mobile: "+971 56 338 9025" },
+  { id: "M00778164", name: "Amira Al Mazrouei", programme: "MA Education", level: "Postgraduate", year: 2, status: "ES Enrolled", email: "a.almazrouei@mdx.ac.ae", mobile: "+971 54 771 4480" },
+];
+
+const SAMPLE_PAYMENT_PLAN = {
+  M00812441: [["2026-01-14", 15000], ["2026-03-02", 15000], ["2026-04-20", 15000]],
+  M00790215: [["2026-01-10", 20000], ["2026-02-18", 20000], ["2026-04-05", 21000]],
+  M00831907: [["2026-01-22", 20000], ["2026-03-11", 18000]],
+  M00764330: [["2026-02-01", 30000], ["2026-04-15", 28000]],
+  M00701558: [],
+  M00778164: [["2026-01-30", 20000], ["2026-03-20", 22000], ["2026-05-08", 20000]],
+};
+
+const SAMPLE_OUTSTANDING = {
+  M00812441: 12000, M00790215: 0, M00831907: 22000, M00764330: 9000, M00701558: 31000, M00778164: 5000,
+};
+
+function bookToFile(rows, name) {
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.json_to_sheet(rows);
+  XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
+  const out = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+  return new File([out], name, { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+}
+
+function buildSampleFiles() {
+  const enrolledRows = SAMPLE_STUDENTS.map((s) => ({
+    "Student ID": s.id, "Name": s.name, "Programme": s.programme, "Level": s.level,
+    "Year": s.year, "Status": s.status, "Email": s.email, "Mobile": s.mobile,
+  }));
+  const accountRows = [];
+  SAMPLE_STUDENTS.forEach((s) => {
+    (SAMPLE_PAYMENT_PLAN[s.id] || []).forEach(([date, amount]) => {
+      accountRows.push({ "Student ID": s.id, "Payment Date": date, "Amount": amount });
+    });
+  });
+  const balanceRows = SAMPLE_STUDENTS.map((s) => ({
+    "Student ID": s.id, "Outstanding Balance": SAMPLE_OUTSTANDING[s.id] || 0,
+  }));
+  return {
+    enrolled: bookToFile(enrolledRows, "Enrolled_Students_2025_26.xlsx"),
+    accounts: bookToFile(accountRows, "SAP_Student_Accounts_May2026.xlsx"),
+    balance: bookToFile(balanceRows, "MDX_Balance_Report_May2026.xlsx"),
+  };
+}
+
+/* ============================== components ============================== */
+
+function LoginScreen({ onSignIn }) {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState(false);
+
+  function submit(e) {
+    e.preventDefault();
+    if (!email.trim() || !password) { setError(true); return; }
+    setError(false);
+    onSignIn(email.trim());
+  }
+
+  return (
+    <div className="login-page">
+      <div className="login-left">
+        <img src="./assets/mdx-logo.png" alt="Middlesex University Dubai" />
+        <h1>Student Collection Dashboard</h1>
+        <p>Finance and student accounts. Collection and outstanding balance, read side by side from the weekly SAP exports.</p>
+        <div className="mono" style={{ fontSize: 12, color: "#9a90c0" }}>Middlesex University Dubai · AED</div>
+      </div>
+      <div className="login-right">
+        <form className="login-form" onSubmit={submit}>
+          <h2>Sign in</h2>
+          <div className="sub">Use your university staff account.</div>
+          <label className="field">
+            <span>Staff email</span>
+            <input type="email" placeholder="name@mdx.ac.ae" value={email} onChange={(e) => setEmail(e.target.value)} />
+          </label>
+          <label className="field">
+            <span>Password</span>
+            <input type="password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} />
+          </label>
+          {error && <div className="error-text">Enter your staff email and password to continue.</div>}
+          <button type="submit" className="btn btn-primary">Sign in</button>
+          <div className="hint-text">Access is limited to Finance and Student Accounts staff.</div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+const UPLOAD_SLOTS = [
+  { key: "balance", title: "Balance Report", hint: "SAP balance extract, one row per student account." },
+  { key: "accounts", title: "SAP Student Accounts Report", hint: "Payments posted to student accounts." },
+  { key: "enrolled", title: "Enrolled Students Report", hint: "Registry status, level and year of study." },
+];
+
+function UploadScreen({ files, errors, onFile, onProcess, onClear, onUseSample }) {
+  const count = Object.values(files).filter(Boolean).length;
+  const ready = count === 3;
+
+  return (
+    <div className="upload-page">
+      <div className="upload-wrap">
+        <h1>Upload the three SAP reports</h1>
+        <div className="sub">3 files required. The dashboard opens once all three are processed.</div>
+
+        <div className="upload-grid">
+          {UPLOAD_SLOTS.map((slot) => {
+            const file = files[slot.key];
+            const error = errors[slot.key];
+            const stateClass = error ? "error" : file ? "filled" : "";
+            return (
+              <div key={slot.key} className={`upload-slot ${stateClass}`}>
+                <div className="chip" />
+                <div className="slot-title">{slot.title}</div>
+                <div className="slot-hint">{slot.hint}</div>
+                <div className="slot-state">{error ? error : file ? file.name : "No file selected"}</div>
+                <label className="pick-label">
+                  Choose a file from your computer
+                  <input
+                    type="file"
+                    accept=".xlsx,.xls,.csv"
+                    style={{ display: "none" }}
+                    onChange={(e) => {
+                      const f = e.target.files && e.target.files[0];
+                      e.target.value = "";
+                      if (f) onFile(slot.key, f);
+                    }}
+                  />
+                </label>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="upload-actions">
+          <div className="counter mono">{count} of 3 files uploaded{ready ? "" : " · 3 files required"}</div>
+          <button className="btn btn-outline" onClick={onUseSample} type="button">Try with sample data</button>
+          <button className="btn btn-primary" disabled={!ready} onClick={onProcess} type="button" style={{ marginLeft: "auto" }}>Process Files</button>
+          <button className="btn btn-outline" onClick={onClear} type="button">Clear All</button>
+        </div>
+        <div className="upload-footnote">Accepted formats: .xlsx, .xls, .csv</div>
+      </div>
+    </div>
+  );
+}
+
+function ProcessingScreen() {
+  return (
+    <div className="processing-page">
+      <div className="spinner" />
+      <div className="processing-line mono">Reading SAP exports · matching student records · aggregating by Level and Year</div>
+    </div>
+  );
+}
+
+function StatCards({ students }) {
+  const total = students.reduce((a, s) => a + s.coll, 0);
+  const withPayments = students.filter((s) => s.coll > 0).length;
+  const avg = withPayments ? total / withPayments : 0;
+
+  return (
+    <div className="stat-grid">
+      <div className="stat-card dark">
+        <div className="stat-label">Total Collection</div>
+        <div className="stat-value">{fmt(total)}</div>
+        <div className="stat-sub">AED</div>
+      </div>
+      <div className="stat-card">
+        <div className="stat-label">Students with Payments</div>
+        <div className="stat-value">{withPayments}<span style={{ fontSize: 26, color: "#6f6788", fontWeight: 500 }}> of {students.length}</span></div>
+      </div>
+      <div className="stat-card">
+        <div className="stat-label">Average Collection</div>
+        <div className="stat-value">{fmt(avg)}</div>
+      </div>
+    </div>
+  );
+}
+
+function useFilterOptions(students) {
+  return useMemo(() => {
+    const levels = Array.from(new Set(students.map((s) => s.level))).sort();
+    const statuses = Array.from(new Set(students.map((s) => s.statusLabel))).sort();
+    return { levels, statuses };
+  }, [students]);
+}
+
+function StudentPanel({ variant, dark, title, allStudents, filters, onFilterChange, onOpenStudent, showExport }) {
+  const { levels, statuses } = useFilterOptions(allStudents);
+
+  const years = useMemo(() => {
+    const pool = filters.level === "All levels" ? allStudents : allStudents.filter((s) => s.level === filters.level);
+    return Array.from(new Set(pool.map((s) => s.year))).sort((a, b) => a - b);
+  }, [allStudents, filters.level]);
+
+  const filtered = useMemo(() => {
+    return allStudents.filter(
+      (s) =>
+        (filters.level === "All levels" || s.level === filters.level) &&
+        (filters.year === "All years" || String(s.year) === String(filters.year)) &&
+        (filters.status === "All statuses" || s.statusLabel === filters.status)
+    );
+  }, [allStudents, filters]);
+
+  const breakdown = useMemo(() => {
+    if (variant !== "collection") return [];
+    const groups = new Map();
+    filtered.forEach((s) => {
+      const key = `${s.level} Year ${s.year}`;
+      if (!groups.has(key)) groups.set(key, { coll: 0, n: 0 });
+      const g = groups.get(key);
+      g.coll += s.coll; g.n += 1;
+    });
+    return Array.from(groups.entries()).map(([label, g]) => `${label} · AED ${fmt(g.coll)} · ${g.n} ${g.n === 1 ? "student" : "students"}`);
+  }, [filtered, variant]);
+
+  const total = filtered.reduce((a, s) => a + (variant === "collection" ? s.coll : s.out), 0);
+
+  function handleLevel(e) { onFilterChange({ level: e.target.value, year: "All years" }); }
+
+  return (
+    <div className={`panel ${dark ? "dark" : ""}`}>
+      <div className="panel-top">
+        <div className="panel-head">
+          <div className="panel-title">{title}</div>
+          <div className="panel-tag mono">{variant === "collection" ? "FILTER SET A" : "FILTER SET B"}</div>
+        </div>
+        <div className="filters">
+          <select value={filters.level} onChange={handleLevel}>
+            <option>All levels</option>
+            {levels.map((l) => <option key={l} value={l}>{l}</option>)}
+          </select>
+          <select value={filters.year} onChange={(e) => onFilterChange({ year: e.target.value })}>
+            <option>All years</option>
+            {years.map((y) => <option key={y} value={y}>Year {y}</option>)}
+          </select>
+          <select value={filters.status} onChange={(e) => onFilterChange({ status: e.target.value })}>
+            <option>All statuses</option>
+            {statuses.map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </div>
+        {variant === "collection" && (
+          <div className="chips">{breakdown.map((b) => <span key={b} className="chip">{b}</span>)}</div>
+        )}
+      </div>
+
+      <div className="panel-body">
+        {filtered.map((s) => (
+          <div className="student-card" key={s.id}>
+            <div>
+              <button className="student-name" onClick={() => onOpenStudent(s.id)}>{s.name}</button>
+              <div className="student-meta">
+                {variant === "collection" ? `${s.id} · ${s.programme} · ${s.levelShort} Year ${s.year}` : `${s.email} · ${s.mobile}`}
+              </div>
+            </div>
+            {variant === "collection" ? (
+              <div className="student-right">
+                <div className="student-amount">{fmt(s.coll)}</div>
+                <div className="student-out">outstanding {fmt(s.out)}</div>
+              </div>
+            ) : (
+              <div className="student-right-stack">
+                <span className="badge" style={{ background: s.badgeBg, color: s.badgeFg }}>{s.statusLabel}</span>
+                <div className="student-amount">{fmt(s.out)}</div>
+              </div>
+            )}
+          </div>
+        ))}
+
+        {filtered.length === 0 && (
+          <div className="empty-block">
+            <div className="empty-cols">
+              <span>{variant === "collection" ? "Name · Programme · Level · Year" : "Name · Email · Mobile"}</span>
+              <span>{variant === "collection" ? "Collection · Outstanding" : "Status · Outstanding"}</span>
+            </div>
+            <div className="empty-text">No students match these filters.</div>
+          </div>
+        )}
+
+        <div className="panel-footer">
+          <div className="footer-note mono">
+            {filtered.length} {filtered.length === 1 ? "student" : "students"} · {variant === "collection" ? "AED" : "outstanding AED"} {fmt(total)}
+          </div>
+          {showExport && (
+            <button className={dark ? "btn btn-outline" : "btn btn-primary"} style={{ marginLeft: "auto" }} onClick={() => exportStudentsToExcel(filtered, `${variant}-export.xlsx`)}>
+              Export to Excel
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const TREND_RANGES = ["Monthly", "Weekly", "Daily"];
+
+function TrendChart({ payments, range, onRangeChange }) {
+  const { points, caption } = useMemo(() => computeTrend(payments, range), [payments, range]);
+  const max = Math.max(1, ...points.map((p) => p.value));
+
+  return (
+    <div className="trend-card">
+      <div className="trend-head">
+        <div className="trend-title">Trend Analytics</div>
+        <div className="trend-toggle">
+          {TREND_RANGES.map((r) => (
+            <button key={r} className={r === range ? "active" : ""} onClick={() => onRangeChange(r)}>{r}</button>
+          ))}
+        </div>
+      </div>
+      <div className="trend-caption">{caption}</div>
+      {points.length ? (
+        <React.Fragment>
+          <div className="trend-bars">
+            {points.map((p) => (
+              <div className="trend-bar-col" key={p.label}>
+                <div className="trend-bar-value mono">{fmt(p.value)}</div>
+                <div className="trend-bar" style={{ height: `${Math.round((p.value / max) * 210)}px` }} />
+              </div>
+            ))}
+          </div>
+          <div className="trend-labels">
+            {points.map((p) => <div className="trend-label" key={p.label}>{p.label}</div>)}
+          </div>
+        </React.Fragment>
+      ) : (
+        <div className="trend-empty">Add a payment date column (e.g. "Payment Date") to the SAP Student Accounts Report to see trends.</div>
+      )}
+    </div>
+  );
+}
+
+function StudentModal({ student, onClose }) {
+  if (!student) return null;
+  const summary = student.out === 0
+    ? "Account settled in full for the current academic year. No outstanding balance."
+    : `AED ${fmt(student.coll)} collected against a balance of AED ${fmt(student.coll + student.out)}. AED ${fmt(student.out)} remains outstanding.`;
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-head">
+          <div className="modal-avatar">{initials(student.name)}</div>
+          <div>
+            <h2>{student.name}</h2>
+            <div className="modal-id mono">{student.id}</div>
+          </div>
+          <button className="modal-close" onClick={onClose}>Close</button>
+        </div>
+        <div className="modal-grid">
+          <div className="modal-col border-r">
+            <div><div className="modal-field-label">Email</div><div className="modal-field-value">{student.email}</div></div>
+            <div><div className="modal-field-label">Mobile</div><div className="modal-field-value">{student.mobile}</div></div>
+            <div><div className="modal-field-label">Programme</div><div className="modal-field-value">{student.programme}</div></div>
+          </div>
+          <div className="modal-col">
+            <div><div className="modal-field-label">Level</div><div className="modal-field-value">{student.level}</div></div>
+            <div><div className="modal-field-label">Year</div><div className="modal-field-value">Year {student.year}</div></div>
+            <div><div className="modal-field-label">Status</div><span className="badge" style={{ background: student.badgeBg, color: student.badgeFg }}>{student.statusLabel}</span></div>
+          </div>
+        </div>
+        <div className="modal-stats">
+          <div className="modal-stat">
+            <div className="modal-field-label">Collection Amount</div>
+            <div className="modal-stat-value">AED {fmt(student.coll)}</div>
+          </div>
+          <div className="modal-stat dark">
+            <div className="modal-field-label" style={{ color: "#b7adda" }}>Outstanding Balance</div>
+            <div className="modal-stat-value">AED {fmt(student.out)}</div>
+          </div>
+        </div>
+        <div className="modal-summary">
+          <div className="modal-field-label">Account Summary</div>
+          <div className="modal-summary-text">{summary}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Dashboard({ students, payments, colFilters, outFilters, onColFilterChange, onOutFilterChange, trendRange, onTrendRangeChange, onOpenStudent, onClear }) {
+  return (
+    <div className="dashboard">
+      <StatCards students={students} />
+      <div className="two-col">
+        <StudentPanel variant="collection" dark={false} title="Collection Summary" allStudents={students} filters={colFilters} onFilterChange={onColFilterChange} onOpenStudent={onOpenStudent} showExport />
+        <StudentPanel variant="outstanding" dark={true} title="Outstanding Balance" allStudents={students} filters={outFilters} onFilterChange={onOutFilterChange} onOpenStudent={onOpenStudent} showExport={false} />
+      </div>
+      <TrendChart payments={payments} range={trendRange} onRangeChange={onTrendRangeChange} />
+      <div className="bottom-row">
+        <button className="btn btn-outline" onClick={onClear}>Clear All and re-upload</button>
+        <div className="footer-note mono">Source: Balance Report · SAP Student Accounts Report · Enrolled Students Report</div>
+      </div>
+    </div>
+  );
+}
+
+/* ============================== App ============================== */
+
+const EMPTY_FILTERS = { level: "All levels", year: "All years", status: "All statuses" };
+
+function App() {
+  const [phase, setPhase] = useState("login");
+  const [userEmail, setUserEmail] = useState("");
+
+  const [files, setFiles] = useState({ balance: null, accounts: null, enrolled: null });
+  const [fileErrors, setFileErrors] = useState({});
+
+  const [students, setStudents] = useState([]);
+  const [payments, setPayments] = useState([]);
+
+  const [colFilters, setColFilters] = useState(EMPTY_FILTERS);
+  const [outFilters, setOutFilters] = useState(EMPTY_FILTERS);
+  const [trendRange, setTrendRange] = useState("Monthly");
+  const [openId, setOpenId] = useState(null);
+
+  const decoratedStudents = useMemo(
+    () => students.map((s) => { const b = badgeFor(s.status); return { ...s, badgeBg: b.bg, badgeFg: b.fg }; }),
+    [students]
+  );
+
+  const openStudent = decoratedStudents.find((s) => s.id === openId) || null;
+
+  function handleSignIn(email) { setUserEmail(email); setPhase("upload"); }
+
+  function handleSignOut() {
+    setPhase("login");
+    setFiles({ balance: null, accounts: null, enrolled: null });
+    setFileErrors({});
+    setStudents([]); setPayments([]); setOpenId(null);
+  }
+
+  function handleFile(key, file) {
+    const ok = /\.(xlsx|xls|csv)$/i.test(file.name);
+    setFiles((f) => ({ ...f, [key]: ok ? file : null }));
+    setFileErrors((e) => ({ ...e, [key]: ok ? null : `Unreadable file. ${file.name} is not an Excel or CSV export.` }));
+  }
+
+  function handleUseSample() {
+    const sample = buildSampleFiles();
+    setFiles(sample);
+    setFileErrors({});
+  }
+
+  function handleClear() {
+    setFiles({ balance: null, accounts: null, enrolled: null });
+    setFileErrors({});
+    setStudents([]); setPayments([]);
+    setColFilters(EMPTY_FILTERS); setOutFilters(EMPTY_FILTERS);
+    setOpenId(null);
+    setPhase("upload");
+  }
+
+  async function handleProcess() {
+    setPhase("processing");
+    const errors = {};
+    let roster = new Map(), collection = new Map(), outstanding = new Map(), paymentsList = [];
+
+    try { roster = await parseEnrolled(files.enrolled); } catch (err) { errors.enrolled = err.message; }
+    try {
+      const res = await parseAccounts(files.accounts);
+      collection = res.collection; paymentsList = res.payments;
+    } catch (err) { errors.accounts = err.message; }
+    try { outstanding = await parseBalance(files.balance); } catch (err) { errors.balance = err.message; }
+
+    if (Object.keys(errors).length) {
+      setFileErrors(errors);
+      setPhase("upload");
+      return;
+    }
+
+    const merged = mergeReports({ roster, collection, outstanding });
+    setStudents(merged);
+    setPayments(paymentsList);
+    setColFilters(EMPTY_FILTERS); setOutFilters(EMPTY_FILTERS);
+    setPhase("loaded");
+  }
+
+  return (
+    <div className="app">
+      {phase !== "login" && (
+        <div className="topbar">
+          <img src="./assets/mdx-logo.png" alt="Middlesex University Dubai" />
+          <div className="title">Student Collection Dashboard</div>
+          <div className="spacer">
+            <div className="user">{userEmail || "student.accounts@mdx.ac.ae"} · Student Accounts</div>
+            <button className="btn btn-outline" onClick={handleSignOut}>Sign out</button>
+          </div>
+        </div>
+      )}
+
+      {phase === "login" && <LoginScreen onSignIn={handleSignIn} />}
+
+      {phase === "upload" && (
+        <UploadScreen files={files} errors={fileErrors} onFile={handleFile} onProcess={handleProcess} onClear={handleClear} onUseSample={handleUseSample} />
+      )}
+
+      {phase === "processing" && <ProcessingScreen />}
+
+      {phase === "loaded" && (
+        <Dashboard
+          students={decoratedStudents}
+          payments={payments}
+          colFilters={colFilters}
+          outFilters={outFilters}
+          onColFilterChange={(patch) => setColFilters((f) => ({ ...f, ...patch }))}
+          onOutFilterChange={(patch) => setOutFilters((f) => ({ ...f, ...patch }))}
+          trendRange={trendRange}
+          onTrendRangeChange={setTrendRange}
+          onOpenStudent={setOpenId}
+          onClear={handleClear}
+        />
+      )}
+
+      <StudentModal student={openStudent} onClose={() => setOpenId(null)} />
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>

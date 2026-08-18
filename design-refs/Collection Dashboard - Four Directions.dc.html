@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,600;1,6..72,300&family=Archivo:wght@400;500;600;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+body { margin: 0; background: #e8e8e6; }
+a { color: #1f4f8b; } a:hover { color: #0d2c52; }
+select { font: inherit; color: inherit; }
+</style>
+</helmet>
+
+<section style="display:flex;flex-wrap:wrap;gap:56px;padding:56px;align-items:flex-start;font-family:'IBM Plex Sans',sans-serif">
+
+  <div id="1a" style="width:1400px;background:#fbfbf9;border:1px solid #c9c9c4">
+    <div style="display:flex;align-items:baseline;gap:12px;padding:10px 14px;background:#1b1b1a;color:#f5f5f2;font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.08em">
+      <span style="background:#f5f5f2;color:#1b1b1a;padding:1px 6px;font-weight:600">1a</span>
+      <span>A — DENSE, DATA-FIRST</span>
+      <span style="margin-left:auto;opacity:.6">MDX DUBAI / STUDENT ACCOUNTS / AED</span>
+    </div>
+    <div style="display:grid;grid-template-columns:1.6fr 1fr 1fr;border-bottom:1px solid #c9c9c4;font-family:'IBM Plex Mono',monospace">
+      <div style="padding:14px 14px 12px 14px;border-right:1px solid #e2e2dd">
+        <div style="font-size:10px;letter-spacing:.12em;color:#6b6b66">TOTAL COLLECTION</div>
+        <div style="font-size:44px;font-weight:600;letter-spacing:-.02em;line-height:1">264,000</div>
+      </div>
+      <div style="padding:22px 14px 12px 14px;border-right:1px solid #e2e2dd">
+        <div style="font-size:10px;letter-spacing:.12em;color:#6b6b66">STUDENTS WITH PAYMENTS</div>
+        <div style="font-size:28px;font-weight:500;line-height:1.1">5 of 6</div>
+      </div>
+      <div style="padding:30px 14px 12px 14px">
+        <div style="font-size:10px;letter-spacing:.12em;color:#6b6b66">AVERAGE COLLECTION</div>
+        <div style="font-size:20px;font-weight:500;line-height:1.1">44,000</div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1.15fr 1fr">
+      <div style="border-right:2px solid #1b1b1a">
+        <div style="display:flex;align-items:center;gap:8px;padding:8px 14px;background:#f0f0ec;border-bottom:1px solid #c9c9c4;font-family:'IBM Plex Mono',monospace;font-size:11px">
+          <strong style="letter-spacing:.1em">COLLECTION SUMMARY</strong>
+          <span style="margin-left:auto;display:flex;gap:6px">
+            <select value="{{ Acol.level }}" onChange="{{ Acol.onLevel }}" style="border:1px solid #9a9a94;background:#fff;font-size:11px;padding:2px 4px;font-family:'IBM Plex Mono',monospace">
+              <sc-for list="{{ levels }}" as="l" hint-placeholder-count="4"><option value="{{ l }}">{{ l }}</option></sc-for>
+            </select>
+            <select value="{{ Acol.year }}" onChange="{{ Acol.onYear }}" style="border:1px solid #9a9a94;background:#fff;font-size:11px;padding:2px 4px;font-family:'IBM Plex Mono',monospace">
+              <sc-for list="{{ Acol.years }}" as="y" hint-placeholder-count="2"><option value="{{ y }}">{{ y }}</option></sc-for>
+            </select>
+            <select value="{{ Acol.status }}" onChange="{{ Acol.onStatus }}" style="border:1px solid #9a9a94;background:#fff;font-size:11px;padding:2px 4px;font-family:'IBM Plex Mono',monospace">
+              <sc-for list="{{ statuses }}" as="s" hint-placeholder-count="4"><option value="{{ s }}">{{ s }}</option></sc-for>
+            </select>
+          </span>
+        </div>
+        <div style="padding:6px 14px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:#4a4a45;background:#fafaf7;border-bottom:1px solid #e2e2dd">
+          <sc-for list="{{ Acol.breakdown }}" as="b" hint-placeholder-count="3"><span style="margin-right:16px">{{ b }}</span></sc-for>
+        </div>
+        <table style="width:100%;border-collapse:collapse;font-family:'IBM Plex Mono',monospace;font-size:12px">
+          <thead><tr style="background:#1b1b1a;color:#f5f5f2;font-size:10px;letter-spacing:.08em">
+            <th style="text-align:left;padding:5px 8px">ID</th><th style="text-align:left;padding:5px 8px">NAME</th><th style="text-align:left;padding:5px 8px">PROGRAMME</th><th style="text-align:left;padding:5px 8px">LEVEL</th><th style="text-align:right;padding:5px 8px">YR</th><th style="text-align:right;padding:5px 8px">COLLECTION</th><th style="text-align:right;padding:5px 8px">OUTSTANDING</th>
+          </tr></thead>
+          <tbody>
+            <sc-for list="{{ Acol.list }}" as="s" hint-placeholder-count="6">
+              <tr style="border-bottom:1px solid #e6e6e1">
+                <td style="padding:5px 8px;color:#8a8a84">{{ s.id }}</td>
+                <td style="padding:5px 8px;font-weight:500"><a href="#1a">{{ s.name }}</a></td>
+                <td style="padding:5px 8px;color:#4a4a45">{{ s.programme }}</td>
+                <td style="padding:5px 8px;color:#4a4a45">{{ s.levelShort }}</td>
+                <td style="padding:5px 8px;text-align:right">{{ s.year }}</td>
+                <td style="padding:5px 8px;text-align:right;font-weight:600">{{ s.collF }}</td>
+                <td style="padding:5px 8px;text-align:right;color:#8a3b2f">{{ s.outF }}</td>
+              </tr>
+            </sc-for>
+          </tbody>
+        </table>
+        <sc-if value="{{ Acol.empty }}" hint-placeholder-val="{{ false }}">
+          <div style="padding:10px 14px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:#6b6b66">No students match these filters.</div>
+        </sc-if>
+        <div style="display:flex;gap:10px;padding:8px 14px;border-top:1px solid #c9c9c4;font-family:'IBM Plex Mono',monospace;font-size:11px">
+          <span style="color:#6b6b66">{{ Acol.count }} rows · AED {{ Acol.totalF }}</span>
+          <button style="margin-left:auto;border:1px solid #1b1b1a;background:#fff;font-family:'IBM Plex Mono',monospace;font-size:11px;padding:3px 8px;cursor:pointer">Export to Excel</button>
+        </div>
+      </div>
+      <div style="background:#f6f4f0">
+        <div style="display:flex;align-items:center;gap:8px;padding:8px 14px;background:#e6e2da;border-bottom:1px solid #c9c9c4;font-family:'IBM Plex Mono',monospace;font-size:11px">
+          <strong style="letter-spacing:.1em">OUTSTANDING BALANCE</strong>
+          <span style="margin-left:auto;display:flex;gap:6px">
+            <select value="{{ Aout.level }}" onChange="{{ Aout.onLevel }}" style="border:1px solid #9a9a94;background:#fff;font-size:11px;padding:2px 4px;font-family:'IBM Plex Mono',monospace">
+              <sc-for list="{{ levels }}" as="l" hint-placeholder-count="4"><option value="{{ l }}">{{ l }}</option></sc-for>
+            </select>
+            <select value="{{ Aout.year }}" onChange="{{ Aout.onYear }}" style="border:1px solid #9a9a94;background:#fff;font-size:11px;padding:2px 4px;font-family:'IBM Plex Mono',monospace">
+              <sc-for list="{{ Aout.years }}" as="y" hint-placeholder-count="2"><option value="{{ y }}">{{ y }}</option></sc-for>
+            </select>
+            <select value="{{ Aout.status }}" onChange="{{ Aout.onStatus }}" style="border:1px solid #9a9a94;background:#fff;font-size:11px;padding:2px 4px;font-family:'IBM Plex Mono',monospace">
+              <sc-for list="{{ statuses }}" as="s" hint-placeholder-count="4"><option value="{{ s }}">{{ s }}</option></sc-for>
+            </select>
+          </span>
+        </div>
+        <table style="width:100%;border-collapse:collapse;font-family:'IBM Plex Mono',monospace;font-size:12px">
+          <thead><tr style="background:#3a3a36;color:#f5f5f2;font-size:10px;letter-spacing:.08em">
+            <th style="text-align:left;padding:5px 8px">ID</th><th style="text-align:left;padding:5px 8px">NAME</th><th style="text-align:left;padding:5px 8px">EMAIL</th><th style="text-align:left;padding:5px 8px">MOBILE</th><th style="text-align:left;padding:5px 8px">ST</th><th style="text-align:right;padding:5px 8px">OUTSTANDING</th>
+          </tr></thead>
+          <tbody>
+            <sc-for list="{{ Aout.list }}" as="s" hint-placeholder-count="6">
+              <tr style="border-bottom:1px solid #dedad2">
+                <td style="padding:5px 8px;color:#8a8a84">{{ s.id }}</td>
+                <td style="padding:5px 8px;font-weight:500"><a href="#1a">{{ s.name }}</a></td>
+                <td style="padding:5px 8px;color:#4a4a45;font-size:11px">{{ s.email }}</td>
+                <td style="padding:5px 8px;color:#4a4a45;font-size:11px">{{ s.mobile }}</td>
+                <td style="padding:5px 8px"><span style="padding:1px 4px;font-size:10px;font-weight:600;background:{{ s.badgeBg }};color:{{ s.badgeFg }}">{{ s.status }}</span></td>
+                <td style="padding:5px 8px;text-align:right;font-weight:600;color:#8a3b2f">{{ s.outF }}</td>
+              </tr>
+            </sc-for>
+          </tbody>
+        </table>
+        <sc-if value="{{ Aout.empty }}" hint-placeholder-val="{{ false }}">
+          <div style="padding:10px 14px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:#6b6b66">No students match these filters.</div>
+        </sc-if>
+        <div style="padding:8px 14px;border-top:1px solid #c9c9c4;font-family:'IBM Plex Mono',monospace;font-size:11px;color:#6b6b66">{{ Aout.count }} rows · outstanding AED {{ Aout.totalF }}</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="1b" style="width:1400px;background:#fdf9f3">
+    <div style="display:flex;align-items:baseline;gap:12px;padding:16px 40px;background:#0f4c45;color:#fdf9f3;font-family:'Newsreader',serif;font-size:14px">
+      <span style="background:#fdf9f3;color:#0f4c45;padding:1px 8px;font-weight:600;font-family:'IBM Plex Mono',monospace;font-size:12px">1b</span>
+      <span style="letter-spacing:.14em;text-transform:uppercase">B — Editorial</span>
+      <span style="margin-left:auto;opacity:.75">Student Accounts · Middlesex University Dubai</span>
+    </div>
+    <div style="padding:48px 40px 32px 40px">
+      <h1 style="margin:0;font-family:'Newsreader',serif;font-weight:300;font-size:56px;line-height:1.05;letter-spacing:-.02em;color:#14201e;max-width:22ch;text-wrap:pretty">Collection and Outstanding Balance, held side by side.</h1>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:32px;margin-top:44px;border-top:2px solid #0f4c45;padding-top:20px">
+        <div>
+          <div style="font-family:'IBM Plex Sans',sans-serif;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:#0f4c45">Total Collection</div>
+          <div style="font-family:'Newsreader',serif;font-size:52px;color:#c2492d;line-height:1.1">AED 264,000</div>
+        </div>
+        <div>
+          <div style="font-family:'IBM Plex Sans',sans-serif;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:#0f4c45">Students with Payments</div>
+          <div style="font-family:'Newsreader',serif;font-size:52px;color:#14201e;line-height:1.1">5 of 6</div>
+        </div>
+        <div>
+          <div style="font-family:'IBM Plex Sans',sans-serif;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:#0f4c45">Average Collection</div>
+          <div style="font-family:'Newsreader',serif;font-size:52px;color:#14201e;line-height:1.1">AED 44,000</div>
+        </div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0;border-top:1px solid #ddd2c2">
+      <div style="padding:36px 40px;background:#fdf9f3;border-right:1px solid #ddd2c2">
+        <div style="font-family:'Newsreader',serif;font-size:30px;color:#0f4c45">Collection Summary</div>
+        <div style="display:flex;gap:10px;margin-top:18px;padding:10px 12px;background:#eaf1ee;border-left:4px solid #0f4c45">
+          <select value="{{ Bcol.level }}" onChange="{{ Bcol.onLevel }}" style="flex:1;border:0;background:transparent;font-size:13px;color:#0f4c45;font-family:'IBM Plex Sans',sans-serif">
+            <sc-for list="{{ levels }}" as="l" hint-placeholder-count="4"><option value="{{ l }}">{{ l }}</option></sc-for>
+          </select>
+          <select value="{{ Bcol.year }}" onChange="{{ Bcol.onYear }}" style="flex:1;border:0;background:transparent;font-size:13px;color:#0f4c45;font-family:'IBM Plex Sans',sans-serif">
+            <sc-for list="{{ Bcol.years }}" as="y" hint-placeholder-count="2"><option value="{{ y }}">{{ y }}</option></sc-for>
+          </select>
+          <select value="{{ Bcol.status }}" onChange="{{ Bcol.onStatus }}" style="flex:1;border:0;background:transparent;font-size:13px;color:#0f4c45;font-family:'IBM Plex Sans',sans-serif">
+            <sc-for list="{{ statuses }}" as="s" hint-placeholder-count="4"><option value="{{ s }}">{{ s }}</option></sc-for>
+          </select>
+        </div>
+        <div style="margin-top:14px;font-family:'IBM Plex Sans',sans-serif;font-size:12px;color:#5c6b67;line-height:1.8">
+          <sc-for list="{{ Bcol.breakdown }}" as="b" hint-placeholder-count="3"><div>{{ b }}</div></sc-for>
+        </div>
+        <div style="display:grid;gap:0;margin-top:22px">
+          <div style="display:grid;grid-template-columns:52px 1.4fr 1.2fr 90px 1fr;gap:12px;padding-bottom:8px;border-bottom:2px solid #14201e;font-family:'IBM Plex Sans',sans-serif;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#5c6b67">
+            <div>ID</div><div>Name</div><div>Programme</div><div>Level·Yr</div><div style="text-align:right">Collection</div>
+          </div>
+          <sc-for list="{{ Bcol.list }}" as="s" hint-placeholder-count="6">
+            <div style="display:grid;grid-template-columns:52px 1.4fr 1.2fr 90px 1fr;gap:12px;padding:14px 0;border-bottom:1px solid #eee3d3;align-items:baseline">
+              <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#9a9086">{{ s.id }}</div>
+              <div style="font-family:'Newsreader',serif;font-size:20px;color:#14201e"><a href="#1b" style="color:#14201e;text-decoration:none;border-bottom:1px solid #c2492d">{{ s.name }}</a></div>
+              <div style="font-family:'IBM Plex Sans',sans-serif;font-size:12px;color:#5c6b67">{{ s.programme }}</div>
+              <div style="font-family:'IBM Plex Sans',sans-serif;font-size:12px;color:#5c6b67">{{ s.levelShort }} {{ s.year }}</div>
+              <div style="text-align:right;font-family:'Newsreader',serif;font-size:22px;color:#c2492d">{{ s.collF }}</div>
+            </div>
+          </sc-for>
+        </div>
+        <sc-if value="{{ Bcol.empty }}" hint-placeholder-val="{{ false }}">
+          <div style="padding:20px 0;font-family:'Newsreader',serif;font-size:18px;color:#5c6b67">No students match these filters.</div>
+        </sc-if>
+        <button style="margin-top:22px;border:1px solid #0f4c45;background:transparent;color:#0f4c45;font-family:'IBM Plex Sans',sans-serif;font-size:12px;letter-spacing:.1em;text-transform:uppercase;padding:10px 18px;cursor:pointer">Export to Excel</button>
+      </div>
+      <div style="padding:36px 40px;background:#f6efe4">
+        <div style="font-family:'Newsreader',serif;font-size:30px;color:#c2492d">Outstanding Balance</div>
+        <div style="display:flex;gap:10px;margin-top:18px;padding:10px 12px;background:#f7e2d8;border-left:4px solid #c2492d">
+          <select value="{{ Bout.level }}" onChange="{{ Bout.onLevel }}" style="flex:1;border:0;background:transparent;font-size:13px;color:#8f2f18;font-family:'IBM Plex Sans',sans-serif">
+            <sc-for list="{{ levels }}" as="l" hint-placeholder-count="4"><option value="{{ l }}">{{ l }}</option></sc-for>
+          </select>
+          <select value="{{ Bout.year }}" onChange="{{ Bout.onYear }}" style="flex:1;border:0;background:transparent;font-size:13px;color:#8f2f18;font-family:'IBM Plex Sans',sans-serif">
+            <sc-for list="{{ Bout.years }}" as="y" hint-placeholder-count="2"><option value="{{ y }}">{{ y }}</option></sc-for>
+          </select>
+          <select value="{{ Bout.status }}" onChange="{{ Bout.onStatus }}" style="flex:1;border:0;background:transparent;font-size:13px;color:#8f2f18;font-family:'IBM Plex Sans',sans-serif">
+            <sc-for list="{{ statuses }}" as="s" hint-placeholder-count="4"><option value="{{ s }}">{{ s }}</option></sc-for>
+          </select>
+        </div>
+        <div style="display:grid;gap:0;margin-top:36px">
+          <div style="display:grid;grid-template-columns:52px 1.3fr 1.5fr 110px 1fr;gap:12px;padding-bottom:8px;border-bottom:2px solid #c2492d;font-family:'IBM Plex Sans',sans-serif;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#8f6a5c">
+            <div>ID</div><div>Name</div><div>Email · Mobile</div><div>Status</div><div style="text-align:right">Outstanding</div>
+          </div>
+          <sc-for list="{{ Bout.list }}" as="s" hint-placeholder-count="6">
+            <div style="display:grid;grid-template-columns:52px 1.3fr 1.5fr 110px 1fr;gap:12px;padding:14px 0;border-bottom:1px solid #e6d6c2;align-items:baseline">
+              <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#a08f80">{{ s.id }}</div>
+              <div style="font-family:'Newsreader',serif;font-size:20px"><a href="#1b" style="color:#14201e;text-decoration:none;border-bottom:1px solid #c2492d">{{ s.name }}</a></div>
+              <div style="font-family:'IBM Plex Sans',sans-serif;font-size:11px;color:#7a6a5c;line-height:1.5">{{ s.email }}<br>{{ s.mobile }}</div>
+              <div><span style="padding:3px 8px;font-family:'IBM Plex Sans',sans-serif;font-size:11px;font-weight:600;background:{{ s.badgeBg }};color:{{ s.badgeFg }}">{{ s.statusLabel }}</span></div>
+              <div style="text-align:right;font-family:'Newsreader',serif;font-size:22px;color:#8f2f18">{{ s.outF }}</div>
+            </div>
+          </sc-for>
+        </div>
+        <sc-if value="{{ Bout.empty }}" hint-placeholder-val="{{ false }}">
+          <div style="padding:20px 0;font-family:'Newsreader',serif;font-size:18px;color:#8f6a5c">No students match these filters.</div>
+        </sc-if>
+      </div>
+    </div>
+  </div>
+
+  <div id="1c" style="width:1400px;background:#eceef1;padding:0 0 40px 0;font-family:'Archivo',sans-serif">
+    <div style="display:flex;align-items:center;gap:12px;padding:14px 32px;background:#fff;border-bottom:1px solid #dadde2">
+      <span style="background:#111;color:#fff;padding:2px 8px;font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600">1c</span>
+      <span style="font-size:13px;font-weight:600;letter-spacing:.12em;text-transform:uppercase">C — Card &amp; Canvas</span>
+      <span style="margin-left:auto;font-size:12px;color:#6d737d">Student Collection Dashboard · AED</span>
+    </div>
+    <div style="padding:32px;display:grid;gap:24px">
+      <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:24px">
+        <div style="background:#111;color:#fff;border-radius:20px;padding:32px">
+          <div style="font-size:12px;letter-spacing:.18em;text-transform:uppercase;opacity:.6">Total Collection</div>
+          <div style="font-size:96px;font-weight:800;letter-spacing:-.04em;line-height:.95">264,000</div>
+          <div style="font-size:14px;opacity:.6">AED · January to May</div>
+        </div>
+        <div style="background:#fff;border-radius:20px;padding:32px;display:flex;flex-direction:column;justify-content:space-between">
+          <div style="font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:#6d737d">Students with Payments</div>
+          <div style="font-size:72px;font-weight:800;letter-spacing:-.04em;line-height:1">5<span style="font-size:28px;color:#6d737d;font-weight:500"> of 6</span></div>
+        </div>
+        <div style="background:#fff;border-radius:20px;padding:32px;display:flex;flex-direction:column;justify-content:space-between">
+          <div style="font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:#6d737d">Average Collection</div>
+          <div style="font-size:72px;font-weight:800;letter-spacing:-.04em;line-height:1">44,000</div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;align-items:start">
+        <div style="background:#fff;border-radius:20px;overflow:hidden;box-shadow:0 1px 0 #dadde2">
+          <div style="padding:24px 28px 0 28px">
+            <div style="font-size:32px;font-weight:800;letter-spacing:-.02em">Collection Summary</div>
+            <div style="display:flex;gap:10px;margin-top:16px">
+              <select value="{{ Ccol.level }}" onChange="{{ Ccol.onLevel }}" style="flex:1;border:2px solid #111;border-radius:999px;background:#fff;padding:8px 14px;font-size:13px;font-weight:600">
+                <sc-for list="{{ levels }}" as="l" hint-placeholder-count="4"><option value="{{ l }}">{{ l }}</option></sc-for>
+              </select>
+              <select value="{{ Ccol.year }}" onChange="{{ Ccol.onYear }}" style="flex:1;border:2px solid #111;border-radius:999px;background:#fff;padding:8px 14px;font-size:13px;font-weight:600">
+                <sc-for list="{{ Ccol.years }}" as="y" hint-placeholder-count="2"><option value="{{ y }}">{{ y }}</option></sc-for>
+              </select>
+              <select value="{{ Ccol.status }}" onChange="{{ Ccol.onStatus }}" style="flex:1;border:2px solid #111;border-radius:999px;background:#fff;padding:8px 14px;font-size:13px;font-weight:600">
+                <sc-for list="{{ statuses }}" as="s" hint-placeholder-count="4"><option value="{{ s }}">{{ s }}</option></sc-for>
+              </select>
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:16px">
+              <sc-for list="{{ Ccol.breakdown }}" as="b" hint-placeholder-count="3"><span style="background:#eceef1;border-radius:999px;padding:6px 12px;font-size:12px;color:#3d4249">{{ b }}</span></sc-for>
+            </div>
+          </div>
+          <div style="display:grid;gap:12px;padding:20px 28px 28px 28px">
+            <sc-for list="{{ Ccol.list }}" as="s" hint-placeholder-count="6">
+              <div style="border:1px solid #e3e6ea;border-radius:16px;padding:18px 20px;display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center">
+                <div>
+                  <a href="#1c" style="font-size:22px;font-weight:600;color:#111;text-decoration:none">{{ s.name }}</a>
+                  <div style="font-size:12px;color:#6d737d;margin-top:4px">{{ s.id }} · {{ s.programme }} · {{ s.levelShort }} Year {{ s.year }}</div>
+                </div>
+                <div style="text-align:right">
+                  <div style="font-size:26px;font-weight:800;letter-spacing:-.02em">{{ s.collF }}</div>
+                  <div style="font-size:12px;color:#b03a2b">outstanding {{ s.outF }}</div>
+                </div>
+              </div>
+            </sc-for>
+            <sc-if value="{{ Ccol.empty }}" hint-placeholder-val="{{ false }}">
+              <div style="font-size:14px;color:#6d737d">No students match these filters.</div>
+            </sc-if>
+            <button style="justify-self:start;border:2px solid #111;border-radius:999px;background:#111;color:#fff;font-family:'Archivo',sans-serif;font-size:13px;font-weight:600;padding:10px 20px;cursor:pointer">Export to Excel</button>
+          </div>
+        </div>
+        <div style="background:#1d2733;border-radius:20px;overflow:hidden;color:#fff">
+          <div style="padding:24px 28px 0 28px">
+            <div style="font-size:32px;font-weight:800;letter-spacing:-.02em">Outstanding Balance</div>
+            <div style="display:flex;gap:10px;margin-top:16px">
+              <select value="{{ Cout.level }}" onChange="{{ Cout.onLevel }}" style="flex:1;border:2px solid #4a5a6d;border-radius:999px;background:#111a24;color:#fff;padding:8px 14px;font-size:13px;font-weight:600">
+                <sc-for list="{{ levels }}" as="l" hint-placeholder-count="4"><option value="{{ l }}">{{ l }}</option></sc-for>
+              </select>
+              <select value="{{ Cout.year }}" onChange="{{ Cout.onYear }}" style="flex:1;border:2px solid #4a5a6d;border-radius:999px;background:#111a24;color:#fff;padding:8px 14px;font-size:13px;font-weight:600">
+                <sc-for list="{{ Cout.years }}" as="y" hint-placeholder-count="2"><option value="{{ y }}">{{ y }}</option></sc-for>
+              </select>
+              <select value="{{ Cout.status }}" onChange="{{ Cout.onStatus }}" style="flex:1;border:2px solid #4a5a6d;border-radius:999px;background:#111a24;color:#fff;padding:8px 14px;font-size:13px;font-weight:600">
+                <sc-for list="{{ statuses }}" as="s" hint-placeholder-count="4"><option value="{{ s }}">{{ s }}</option></sc-for>
+              </select>
+            </div>
+          </div>
+          <div style="display:grid;gap:12px;padding:20px 28px 28px 28px">
+            <sc-for list="{{ Cout.list }}" as="s" hint-placeholder-count="6">
+              <div style="border:1px solid #354354;border-radius:16px;padding:18px 20px;display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center">
+                <div>
+                  <a href="#1c" style="font-size:22px;font-weight:600;color:#fff;text-decoration:none">{{ s.name }}</a>
+                  <div style="font-size:12px;color:#9fb0c2;margin-top:4px">{{ s.email }} · {{ s.mobile }}</div>
+                </div>
+                <div style="text-align:right;display:grid;gap:6px;justify-items:end">
+                  <span style="border-radius:999px;padding:3px 10px;font-size:11px;font-weight:600;background:{{ s.badgeBg }};color:{{ s.badgeFg }}">{{ s.statusLabel }}</span>
+                  <div style="font-size:26px;font-weight:800;letter-spacing:-.02em">{{ s.outF }}</div>
+                </div>
+              </div>
+            </sc-for>
+            <sc-if value="{{ Cout.empty }}" hint-placeholder-val="{{ false }}">
+              <div style="font-size:14px;color:#9fb0c2">No students match these filters.</div>
+            </sc-if>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="1d" style="width:1400px;background:#f4f1e8;font-family:'Space Mono',monospace;color:#20201c">
+    <div style="display:flex;align-items:baseline;gap:12px;padding:12px 28px;border-bottom:1px solid #20201c">
+      <span style="background:#20201c;color:#f4f1e8;padding:1px 7px;font-size:12px;font-weight:700">1d</span>
+      <span style="font-size:12px;letter-spacing:.16em">D — LEDGER SHEET</span>
+      <span style="margin-left:auto;font-size:11px;color:#6a675c">MIDDLESEX UNIVERSITY DUBAI · STUDENT ACCOUNTS · AED · SHEET 1/1</span>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);border-bottom:1px solid #20201c">
+      <div style="padding:18px 28px;border-right:1px dashed #b8b3a2">
+        <div style="font-size:11px;letter-spacing:.14em;color:#6a675c">TOTAL COLLECTION</div>
+        <div style="font-size:34px;font-weight:700;font-variant-numeric:tabular-nums">264,000.00</div>
+      </div>
+      <div style="padding:18px 28px;border-right:1px dashed #b8b3a2">
+        <div style="font-size:11px;letter-spacing:.14em;color:#6a675c">STUDENTS WITH PAYMENTS</div>
+        <div style="font-size:34px;font-weight:700;font-variant-numeric:tabular-nums">5 / 6</div>
+      </div>
+      <div style="padding:18px 28px">
+        <div style="font-size:11px;letter-spacing:.14em;color:#6a675c">AVERAGE COLLECTION</div>
+        <div style="font-size:34px;font-weight:700;font-variant-numeric:tabular-nums">44,000.00</div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr">
+      <div style="padding:24px 28px 28px 28px;border-right:1px solid #20201c">
+        <div style="display:flex;align-items:baseline;gap:10px">
+          <div style="font-size:16px;font-weight:700;letter-spacing:.1em">COLLECTION SUMMARY</div>
+          <div style="margin-left:auto;font-size:11px;color:#6a675c">SHEET A · FILTER SET A</div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:0;margin-top:14px;border:1px solid #20201c">
+          <label style="display:grid;gap:2px;padding:8px 10px;border-right:1px solid #20201c">
+            <span style="font-size:10px;letter-spacing:.14em;color:#6a675c">LEVEL</span>
+            <select value="{{ Dcol.level }}" onChange="{{ Dcol.onLevel }}" style="border:0;background:transparent;font-family:'Space Mono',monospace;font-size:13px;font-weight:700">
+              <sc-for list="{{ levels }}" as="l" hint-placeholder-count="4"><option value="{{ l }}">{{ l }}</option></sc-for>
+            </select>
+          </label>
+          <label style="display:grid;gap:2px;padding:8px 10px;border-right:1px solid #20201c">
+            <span style="font-size:10px;letter-spacing:.14em;color:#6a675c">YEAR</span>
+            <select value="{{ Dcol.year }}" onChange="{{ Dcol.onYear }}" style="border:0;background:transparent;font-family:'Space Mono',monospace;font-size:13px;font-weight:700">
+              <sc-for list="{{ Dcol.years }}" as="y" hint-placeholder-count="2"><option value="{{ y }}">{{ y }}</option></sc-for>
+            </select>
+          </label>
+          <label style="display:grid;gap:2px;padding:8px 10px">
+            <span style="font-size:10px;letter-spacing:.14em;color:#6a675c">STATUS</span>
+            <select value="{{ Dcol.status }}" onChange="{{ Dcol.onStatus }}" style="border:0;background:transparent;font-family:'Space Mono',monospace;font-size:13px;font-weight:700">
+              <sc-for list="{{ statuses }}" as="s" hint-placeholder-count="4"><option value="{{ s }}">{{ s }}</option></sc-for>
+            </select>
+          </label>
+        </div>
+        <div style="margin-top:12px;font-size:11px;color:#4a473e;line-height:1.9">
+          <sc-for list="{{ Dcol.breakdown }}" as="b" hint-placeholder-count="3"><div>{{ b }}</div></sc-for>
+        </div>
+        <table style="width:100%;border-collapse:collapse;margin-top:16px;font-size:12px">
+          <thead><tr style="border-top:1px solid #20201c;border-bottom:1px solid #20201c">
+            <th style="text-align:left;padding:7px 6px;font-size:10px;letter-spacing:.1em;color:#6a675c">ID</th>
+            <th style="text-align:left;padding:7px 6px;font-size:10px;letter-spacing:.1em;color:#6a675c">NAME</th>
+            <th style="text-align:left;padding:7px 6px;font-size:10px;letter-spacing:.1em;color:#6a675c">PROGRAMME</th>
+            <th style="text-align:left;padding:7px 6px;font-size:10px;letter-spacing:.1em;color:#6a675c">LVL/YR</th>
+            <th style="text-align:right;padding:7px 6px;font-size:10px;letter-spacing:.1em;color:#6a675c">COLLECTION</th>
+            <th style="text-align:right;padding:7px 6px;font-size:10px;letter-spacing:.1em;color:#6a675c">OUTSTANDING</th>
+          </tr></thead>
+          <tbody>
+            <sc-for list="{{ Dcol.list }}" as="s" hint-placeholder-count="6">
+              <tr style="border-bottom:1px dotted #b8b3a2">
+                <td style="padding:9px 6px;color:#6a675c">{{ s.id }}</td>
+                <td style="padding:9px 6px"><a href="#1d" style="color:#20201c;text-decoration:underline">{{ s.name }}</a></td>
+                <td style="padding:9px 6px;color:#4a473e;font-size:11px">{{ s.programme }}</td>
+                <td style="padding:9px 6px;color:#4a473e">{{ s.levelShort }}/{{ s.year }}</td>
+                <td style="padding:9px 6px;text-align:right;font-weight:700;font-variant-numeric:tabular-nums">{{ s.coll2 }}</td>
+                <td style="padding:9px 6px;text-align:right;font-variant-numeric:tabular-nums;color:#6a675c">{{ s.out2 }}</td>
+              </tr>
+            </sc-for>
+          </tbody>
+          <tfoot><tr style="border-top:1px solid #20201c;border-bottom:3px double #20201c">
+            <td colspan="4" style="padding:8px 6px;font-size:11px;letter-spacing:.1em">SUBTOTAL · {{ Dcol.count }} RECORDS</td>
+            <td style="padding:8px 6px;text-align:right;font-weight:700;font-variant-numeric:tabular-nums">{{ Dcol.total2 }}</td>
+            <td style="padding:8px 6px;text-align:right;font-variant-numeric:tabular-nums">{{ Dcol.outTotal2 }}</td>
+          </tr></tfoot>
+        </table>
+        <sc-if value="{{ Dcol.empty }}" hint-placeholder-val="{{ false }}">
+          <div style="padding:10px 6px;font-size:11px;color:#6a675c">No students match these filters.</div>
+        </sc-if>
+        <button style="margin-top:16px;border:1px solid #20201c;background:#20201c;color:#f4f1e8;font-family:'Space Mono',monospace;font-size:11px;letter-spacing:.1em;padding:8px 14px;cursor:pointer">EXPORT TO EXCEL</button>
+      </div>
+      <div style="padding:24px 28px 28px 28px;background:#efe9d9">
+        <div style="display:flex;align-items:baseline;gap:10px">
+          <div style="font-size:16px;font-weight:700;letter-spacing:.1em">OUTSTANDING BALANCE</div>
+          <div style="margin-left:auto;font-size:11px;color:#6a675c">SHEET B · FILTER SET B</div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:0;margin-top:14px;border:1px solid #20201c;background:#f4f1e8">
+          <label style="display:grid;gap:2px;padding:8px 10px;border-right:1px solid #20201c">
+            <span style="font-size:10px;letter-spacing:.14em;color:#6a675c">LEVEL</span>
+            <select value="{{ Dout.level }}" onChange="{{ Dout.onLevel }}" style="border:0;background:transparent;font-family:'Space Mono',monospace;font-size:13px;font-weight:700">
+              <sc-for list="{{ levels }}" as="l" hint-placeholder-count="4"><option value="{{ l }}">{{ l }}</option></sc-for>
+            </select>
+          </label>
+          <label style="display:grid;gap:2px;padding:8px 10px;border-right:1px solid #20201c">
+            <span style="font-size:10px;letter-spacing:.14em;color:#6a675c">YEAR</span>
+            <select value="{{ Dout.year }}" onChange="{{ Dout.onYear }}" style="border:0;background:transparent;font-family:'Space Mono',monospace;font-size:13px;font-weight:700">
+              <sc-for list="{{ Dout.years }}" as="y" hint-placeholder-count="2"><option value="{{ y }}">{{ y }}</option></sc-for>
+            </select>
+          </label>
+          <label style="display:grid;gap:2px;padding:8px 10px">
+            <span style="font-size:10px;letter-spacing:.14em;color:#6a675c">STATUS</span>
+            <select value="{{ Dout.status }}" onChange="{{ Dout.onStatus }}" style="border:0;background:transparent;font-family:'Space Mono',monospace;font-size:13px;font-weight:700">
+              <sc-for list="{{ statuses }}" as="s" hint-placeholder-count="4"><option value="{{ s }}">{{ s }}</option></sc-for>
+            </select>
+          </label>
+        </div>
+        <table style="width:100%;border-collapse:collapse;margin-top:41px;font-size:12px">
+          <thead><tr style="border-top:1px solid #20201c;border-bottom:1px solid #20201c">
+            <th style="text-align:left;padding:7px 6px;font-size:10px;letter-spacing:.1em;color:#6a675c">ID</th>
+            <th style="text-align:left;padding:7px 6px;font-size:10px;letter-spacing:.1em;color:#6a675c">NAME</th>
+            <th style="text-align:left;padding:7px 6px;font-size:10px;letter-spacing:.1em;color:#6a675c">EMAIL</th>
+            <th style="text-align:left;padding:7px 6px;font-size:10px;letter-spacing:.1em;color:#6a675c">MOBILE</th>
+            <th style="text-align:left;padding:7px 6px;font-size:10px;letter-spacing:.1em;color:#6a675c">STATUS</th>
+            <th style="text-align:right;padding:7px 6px;font-size:10px;letter-spacing:.1em;color:#6a675c">OUTSTANDING</th>
+          </tr></thead>
+          <tbody>
+            <sc-for list="{{ Dout.list }}" as="s" hint-placeholder-count="6">
+              <tr style="border-bottom:1px dotted #b8b3a2">
+                <td style="padding:9px 6px;color:#6a675c">{{ s.id }}</td>
+                <td style="padding:9px 6px"><a href="#1d" style="color:#20201c;text-decoration:underline">{{ s.name }}</a></td>
+                <td style="padding:9px 6px;color:#4a473e;font-size:10px">{{ s.email }}</td>
+                <td style="padding:9px 6px;color:#4a473e;font-size:10px">{{ s.mobile }}</td>
+                <td style="padding:9px 6px"><span style="border:1px solid {{ s.badgeFg }};color:{{ s.badgeFg }};padding:1px 5px;font-size:10px;font-weight:700">{{ s.status }}</span></td>
+                <td style="padding:9px 6px;text-align:right;font-weight:700;font-variant-numeric:tabular-nums">{{ s.out2 }}</td>
+              </tr>
+            </sc-for>
+          </tbody>
+          <tfoot><tr style="border-top:1px solid #20201c;border-bottom:3px double #20201c">
+            <td colspan="5" style="padding:8px 6px;font-size:11px;letter-spacing:.1em">SUBTOTAL · {{ Dout.count }} RECORDS</td>
+            <td style="padding:8px 6px;text-align:right;font-weight:700;font-variant-numeric:tabular-nums">{{ Dout.outTotal2 }}</td>
+          </tr></tfoot>
+        </table>
+        <sc-if value="{{ Dout.empty }}" hint-placeholder-val="{{ false }}">
+          <div style="padding:10px 6px;font-size:11px;color:#6a675c">No students match these filters.</div>
+        </sc-if>
+      </div>
+    </div>
+  </div>
+
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1560,&quot;height&quot;:1100}}">
+const STUDENTS = [
+  { id: "M00812441", name: "Ahmed Al Mansouri", programme: "Foundation Business", level: "Foundation", levelShort: "FDN", year: 1, status: "ES", coll: 45000, out: 12000, email: "a.almansouri@mdx.ac.ae", mobile: "+971 50 224 8817" },
+  { id: "M00790215", name: "Fatima Al Zahra", programme: "BA Business Management", level: "Undergraduate", levelShort: "UG", year: 2, status: "ES", coll: 61000, out: 0, email: "f.alzahra@mdx.ac.ae", mobile: "+971 55 610 3392" },
+  { id: "M00831907", name: "Mohammed Al Khouri", programme: "BSc Computer Science", level: "Undergraduate", levelShort: "UG", year: 1, status: "WD", coll: 38000, out: 22000, email: "m.alkhouri@mdx.ac.ae", mobile: "+971 52 447 1206" },
+  { id: "M00764330", name: "Sarah Al Qassimi", programme: "MSc Data Science", level: "Postgraduate", levelShort: "PG", year: 1, status: "ES", coll: 58000, out: 9000, email: "s.alqassimi@mdx.ac.ae", mobile: "+971 50 903 7714" },
+  { id: "M00701558", name: "Hassan Al Falasi", programme: "BSc Accounting & Finance", level: "Undergraduate", levelShort: "UG", year: 3, status: "IN", coll: 0, out: 31000, email: "h.alfalasi@mdx.ac.ae", mobile: "+971 56 338 9025" },
+  { id: "M00778164", name: "Amira Al Mazrouei", programme: "MA Education", level: "Postgraduate", levelShort: "PG", year: 2, status: "ES", coll: 62000, out: 5000, email: "a.almazrouei@mdx.ac.ae", mobile: "+971 54 771 4480" }
+];
+const YEARS_BY_LEVEL = { Foundation: [1], Undergraduate: [1, 2, 3], Postgraduate: [1, 2] };
+const BADGE = {
+  ES: { label: "ES Enrolled", bg: "#d9ecdc", fg: "#2c6b3c" },
+  WD: { label: "WD Withdrawn", bg: "#f6ecc8", fg: "#8a6b16" },
+  IN: { label: "IN Interrupted", bg: "#e4e4e0", fg: "#5a5a55" }
+};
+const STATUS_OPTS = ["All statuses", "ES Enrolled", "WD Withdrawn", "IN Interrupted"];
+const KEYS = ["Acol", "Aout", "Bcol", "Bout", "Ccol", "Cout", "Dcol", "Dout"];
+
+class Component extends DCLogic {
+  state = KEYS.reduce((acc, k) => {
+    acc[k] = { level: "All levels", year: "All years", status: "All statuses" };
+    return acc;
+  }, {});
+
+  set(key, field, value) {
+    this.setState(s => {
+      const next = Object.assign({}, s[key], { [field]: value });
+      if (field === "level") next.year = "All years";
+      return { [key]: next };
+    });
+  }
+
+  fmt(n, dec) {
+    return n.toLocaleString("en-US", { minimumFractionDigits: dec || 0, maximumFractionDigits: dec || 0 });
+  }
+
+  pane(key) {
+    const f = this.state[key];
+    const rows = STUDENTS.filter(s =>
+      (f.level === "All levels" || s.level === f.level) &&
+      (f.year === "All years" || String(s.year) === String(f.year).replace("Year ", "")) &&
+      (f.status === "All statuses" || f.status.slice(0, 2) === s.status)
+    ).map(s => {
+      const b = BADGE[s.status];
+      return Object.assign({}, s, {
+        collF: this.fmt(s.coll), outF: this.fmt(s.out),
+        coll2: this.fmt(s.coll, 2), out2: this.fmt(s.out, 2),
+        badgeBg: b.bg, badgeFg: b.fg, statusLabel: b.label
+      });
+    });
+    const years = ["All years"].concat(
+      (f.level === "All levels" ? [1, 2, 3] : YEARS_BY_LEVEL[f.level]).map(y => "Year " + y)
+    );
+    const groups = {};
+    rows.forEach(s => {
+      const g = s.level + " Year " + s.year;
+      groups[g] = groups[g] || { coll: 0, n: 0 };
+      groups[g].coll += s.coll; groups[g].n += 1;
+    });
+    const total = rows.reduce((a, s) => a + s.coll, 0);
+    const outTotal = rows.reduce((a, s) => a + s.out, 0);
+    return {
+      list: rows, years, level: f.level, year: f.year, status: f.status,
+      empty: rows.length === 0, count: rows.length,
+      totalF: this.fmt(total), total2: this.fmt(total, 2), outTotalF: this.fmt(outTotal), outTotal2: this.fmt(outTotal, 2),
+      breakdown: Object.keys(groups).map(g => g + " · AED " + this.fmt(groups[g].coll) + " · " + groups[g].n + (groups[g].n === 1 ? " student" : " students")),
+      onLevel: e => this.set(key, "level", e.target.value),
+      onYear: e => this.set(key, "year", e.target.value),
+      onStatus: e => this.set(key, "status", e.target.value)
+    };
+  }
+
+  renderVals() {
+    const vals = {
+      levels: ["All levels", "Foundation", "Undergraduate", "Postgraduate"],
+      statuses: STATUS_OPTS
+    };
+    KEYS.forEach(k => { vals[k] = this.pane(k); });
+    return vals;
+  }
+}
+</script>
+</body>
+</html>
