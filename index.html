@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Student Collection Dashboard</title>
-<link rel="icon" type="image/png" href="./assets/mdx-logo.png" />
+<link rel="icon" type="image/png" href="https://raw.githubusercontent.com/hisham-sh88/student-collection-dashboard/main/assets/mdx-logo.png" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="./styles.css" />
@@ -21,6 +21,7 @@
 
 <script type="text/babel" data-presets="react">
 const { useState, useMemo } = React;
+const LOGO_URL = "https://raw.githubusercontent.com/hisham-sh88/student-collection-dashboard/main/assets/mdx-logo.png";
 
 /* ============================== lib/format ============================== */
 
@@ -375,10 +376,8 @@ function LoginScreen({ onSignIn }) {
   return (
     <div className="login-page">
       <div className="login-left">
-        <img src="./assets/mdx-logo.png" alt="Middlesex University Dubai" />
+        <img src={LOGO_URL} alt="Middlesex University Dubai" />
         <h1>Student Collection Dashboard</h1>
-        <p>Finance and student accounts. Collection and outstanding balance, read side by side from the weekly SAP exports.</p>
-        <div className="mono" style={{ fontSize: 12, color: "#9a90c0" }}>Middlesex University Dubai · AED</div>
       </div>
       <div className="login-right">
         <form className="login-form" onSubmit={submit}>
@@ -794,7 +793,7 @@ function App() {
     <div className="app">
       {phase !== "login" && (
         <div className="topbar">
-          <img src="./assets/mdx-logo.png" alt="Middlesex University Dubai" />
+          <img src={LOGO_URL} alt="Middlesex University Dubai" />
           <div className="title">Student Collection Dashboard</div>
           <div className="spacer">
             <div className="user">{userEmail || "student.accounts@mdx.ac.ae"} · Student Accounts</div>
