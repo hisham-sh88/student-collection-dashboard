@@ -6,7 +6,7 @@ module.exports = async function handler(req, res) {
     return;
   }
   try {
-    const info = await head("latest-data.json");
+    const info = await head("latest-data.json", { storeId: process.env.scd_data_STORE_ID });
     const upstream = await fetch(info.url, { cache: "no-store" });
     if (!upstream.ok) throw new Error("Blob fetch failed with status " + upstream.status);
     const data = await upstream.json();

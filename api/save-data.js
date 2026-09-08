@@ -19,6 +19,7 @@ module.exports = async function handler(req, res) {
       addRandomSuffix: false,
       allowOverwrite: true,
       contentType: "application/json",
+      storeId: process.env.scd_data_STORE_ID,
     });
     res.status(200).json({ ok: true });
   } catch (err) {
