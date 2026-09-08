@@ -294,8 +294,9 @@ function buildDailySeries(payments, limit) {
   const maxTime = Math.max(...times);
   const series = [];
   for (let t = minTime; t <= maxTime; t += ONE_DAY) {
+    const d = new Date(t);
     series.push({
-      label: new Date(t).toLocaleString("en-US", { day: "numeric", month: "short" }),
+      label: `${d.toLocaleString("en-US", { day: "numeric", month: "short" })} '${String(d.getFullYear()).slice(-2)}`,
       value: days.get(t) || 0,
       sort: t,
     });
