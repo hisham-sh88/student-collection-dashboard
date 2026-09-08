@@ -15,7 +15,7 @@ module.exports = async function handler(req, res) {
       uploadedBy: body.uploadedBy || "unknown",
     });
     await put("latest-data.json", payload, {
-      access: "public",
+      access: "private",
       addRandomSuffix: false,
       allowOverwrite: true,
       contentType: "application/json",
