@@ -31,6 +31,13 @@ function fmt(n) {
   return Math.round(n || 0).toLocaleString("en-US");
 }
 
+function formatDate(d) {
+  if (!d) return null;
+  const date = d instanceof Date ? d : new Date(d);
+  if (isNaN(date)) return null;
+  return date.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+}
+
 function initials(name) {
   return String(name || "")
     .split(" ")
@@ -180,6 +187,7 @@ async function parseAccounts(file) {
   const dateCol = findColumn(idx, "date");
 
   const collection = new Map();
+  const lastPaymentDate = new Map();
   const payments = [];
   rows.forEach((r) => {
     const id = String(r[idCol]).trim();
@@ -187,9 +195,13 @@ async function parseAccounts(file) {
     const amount = toNumber(r[amountCol]);
     collection.set(id, (collection.get(id) || 0) + amount);
     const date = dateCol ? toDate(r[dateCol]) : null;
+    if (date) {
+      const prev = lastPaymentDate.get(id);
+      if (!prev || date > prev) lastPaymentDate.set(id, date);
+    }
     payments.push({ id, amount, date });
   });
-  return { collection, payments, hasDates: payments.some((p) => p.date) };
+  return { collection, lastPaymentDate, payments, hasDates: payments.some((p) => p.date) };
 }
 
 async function parseBalance(file) {
@@ -201,16 +213,20 @@ async function parseBalance(file) {
   if (!idCol || !balanceCol) {
     throw new Error(`Couldn't find a student ID and outstanding balance column in ${file.name}.`);
   }
+  const dateCol = findColumn(idx, "date");
   const outstanding = new Map();
+  const balanceDate = new Map();
   rows.forEach((r) => {
     const id = String(r[idCol]).trim();
     if (!id) return;
     outstanding.set(id, (outstanding.get(id) || 0) + toNumber(r[balanceCol]));
+    const date = dateCol ? toDate(r[dateCol]) : null;
+    if (date) balanceDate.set(id, date);
   });
-  return outstanding;
+  return { outstanding, balanceDate };
 }
 
-function mergeReports({ roster, collection, outstanding }) {
+function mergeReports({ roster, collection, outstanding, lastPaymentDate, balanceDate, reportDate }) {
   const ids = new Set([...roster.keys(), ...collection.keys(), ...outstanding.keys()]);
   const students = [];
   ids.forEach((id) => {
@@ -227,10 +243,14 @@ function mergeReports({ roster, collection, outstanding }) {
       email: "—",
       mobile: "—",
     };
+    const lastPayment = lastPaymentDate.get(id);
+    const lastBalance = balanceDate.get(id) || (outstanding.has(id) ? reportDate : null);
     students.push({
       ...base,
       coll: collection.get(id) || 0,
       out: outstanding.get(id) || 0,
+      lastPaymentDate: lastPayment ? lastPayment.toISOString() : null,
+      balanceDate: lastBalance ? new Date(lastBalance).toISOString() : null,
     });
   });
   students.sort((a, b) => a.name.localeCompare(b.name));
@@ -353,7 +373,9 @@ function exportStudentsToExcel(students, filename) {
     "Email": s.email,
     "Mobile": s.mobile,
     "Collection (AED)": s.coll,
+    "Last Payment Date": formatDate(s.lastPaymentDate) || "—",
     "Outstanding (AED)": s.out,
+    "Balance As Of": formatDate(s.balanceDate) || "—",
   }));
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.json_to_sheet(rows);
@@ -661,11 +683,15 @@ function StudentPanel({ variant, dark, title, allStudents, filters, onFilterChan
               <div className="student-right">
                 <div className="student-amount">{fmt(s.coll)}</div>
                 <div className="student-out">outstanding {fmt(s.out)}</div>
+                <div className="student-date">
+                  {s.lastPaymentDate ? `last payment ${formatDate(s.lastPaymentDate)}` : "no payments recorded"}
+                </div>
               </div>
             ) : (
               <div className="student-right-stack">
                 <span className="badge" style={{ background: s.badgeBg, color: s.badgeFg }}>{s.statusLabel}</span>
                 <div className="student-amount">{fmt(s.out)}</div>
+                {s.balanceDate && <div className="student-date">as of {formatDate(s.balanceDate)}</div>}
               </div>
             )}
           </div>
@@ -768,10 +794,14 @@ function StudentModal({ student, onClose }) {
           <div className="modal-stat">
             <div className="modal-field-label">Collection Amount</div>
             <div className="modal-stat-value">AED {fmt(student.coll)}</div>
+            <div className="modal-stat-date">
+              {student.lastPaymentDate ? `Last payment ${formatDate(student.lastPaymentDate)}` : "No payments recorded"}
+            </div>
           </div>
           <div className="modal-stat dark">
             <div className="modal-field-label" style={{ color: "#b7adda" }}>Outstanding Balance</div>
             <div className="modal-stat-value">AED {fmt(student.out)}</div>
+            {student.balanceDate && <div className="modal-stat-date">As of {formatDate(student.balanceDate)}</div>}
           </div>
         </div>
         <div className="modal-summary">
@@ -908,13 +938,17 @@ function App() {
     setPhase("processing");
     const errors = {};
     let roster = new Map(), collection = new Map(), outstanding = new Map(), paymentsList = [];
+    let lastPaymentDate = new Map(), balanceDate = new Map();
 
     try { roster = await parseEnrolled(files.enrolled); } catch (err) { errors.enrolled = err.message; }
     try {
       const res = await parseAccounts(files.accounts);
-      collection = res.collection; paymentsList = res.payments;
+      collection = res.collection; paymentsList = res.payments; lastPaymentDate = res.lastPaymentDate;
     } catch (err) { errors.accounts = err.message; }
-    try { outstanding = await parseBalance(files.balance); } catch (err) { errors.balance = err.message; }
+    try {
+      const res = await parseBalance(files.balance);
+      outstanding = res.outstanding; balanceDate = res.balanceDate;
+    } catch (err) { errors.balance = err.message; }
 
     if (Object.keys(errors).length) {
       setFileErrors(errors);
@@ -922,7 +956,8 @@ function App() {
       return;
     }
 
-    const merged = mergeReports({ roster, collection, outstanding });
+    const uploadedAt = new Date().toISOString();
+    const merged = mergeReports({ roster, collection, outstanding, lastPaymentDate, balanceDate, reportDate: uploadedAt });
 
     let prevData = null;
     let backendReachable = true;
@@ -944,7 +979,6 @@ function App() {
       if (local) changes = computeChanges(local, merged);
     }
 
-    const uploadedAt = new Date().toISOString();
     const uploadedBy = userEmail || "student.accounts@mdx.ac.ae";
     let nextSaveError = null;
     try {
