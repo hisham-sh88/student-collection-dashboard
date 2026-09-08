@@ -289,6 +289,54 @@ function computeTrend(payments, range) {
   return { points, caption: "Collection by day. AED." };
 }
 
+/* ============================== lib/notifications ============================== */
+
+const SNAPSHOT_KEY = "scd_last_snapshot";
+
+function loadSnapshot() {
+  try {
+    return JSON.parse(localStorage.getItem(SNAPSHOT_KEY) || "null");
+  } catch (err) {
+    return null;
+  }
+}
+
+function saveSnapshot(students) {
+  const snap = {};
+  students.forEach((s) => {
+    snap[s.id] = { coll: s.coll, out: s.out, statusLabel: s.statusLabel };
+  });
+  try {
+    localStorage.setItem(SNAPSHOT_KEY, JSON.stringify(snap));
+  } catch (err) {}
+}
+
+function computeChanges(prevSnapshot, students) {
+  const changes = [];
+  students.forEach((s) => {
+    const prev = prevSnapshot[s.id];
+    if (!prev) {
+      changes.push({ id: s.id, message: `${s.name} added to the roster.` });
+      return;
+    }
+    if (s.coll !== prev.coll) {
+      const diff = s.coll - prev.coll;
+      changes.push({
+        id: s.id,
+        message: diff > 0
+          ? `${s.name}: payment of AED ${fmt(diff)} received (total AED ${fmt(s.coll)}).`
+          : `${s.name}: collection adjusted to AED ${fmt(s.coll)}.`,
+      });
+    } else if (s.out !== prev.out) {
+      changes.push({ id: s.id, message: `${s.name}: outstanding balance updated to AED ${fmt(s.out)}.` });
+    }
+    if (s.statusLabel !== prev.statusLabel) {
+      changes.push({ id: s.id, message: `${s.name}: status changed to ${s.statusLabel}.` });
+    }
+  });
+  return changes;
+}
+
 /* ============================== lib/exportExcel ============================== */
 
 function exportStudentsToExcel(students, filename) {
@@ -740,6 +788,8 @@ function App() {
   const [outFilters, setOutFilters] = useState(EMPTY_FILTERS);
   const [trendRange, setTrendRange] = useState("Monthly");
   const [openId, setOpenId] = useState(null);
+  const [notifications, setNotifications] = useState([]);
+  const [notifOpen, setNotifOpen] = useState(false);
 
   const decoratedStudents = useMemo(
     () => students.map((s) => { const b = badgeFor(s.status); return { ...s, badgeBg: b.bg, badgeFg: b.fg }; }),
@@ -755,6 +805,7 @@ function App() {
     setFiles({ balance: null, accounts: null, enrolled: null });
     setFileErrors({});
     setStudents([]); setPayments([]); setOpenId(null);
+    setNotifications([]); setNotifOpen(false);
   }
 
   function handleFile(key, file) {
@@ -775,6 +826,7 @@ function App() {
     setStudents([]); setPayments([]);
     setColFilters(EMPTY_FILTERS); setOutFilters(EMPTY_FILTERS);
     setOpenId(null);
+    setNotifications([]); setNotifOpen(false);
     setPhase("upload");
   }
 
@@ -797,6 +849,9 @@ function App() {
     }
 
     const merged = mergeReports({ roster, collection, outstanding });
+    const prevSnapshot = loadSnapshot();
+    setNotifications(prevSnapshot ? computeChanges(prevSnapshot, merged) : []);
+    saveSnapshot(merged);
     setStudents(merged);
     setPayments(paymentsList);
     setColFilters(EMPTY_FILTERS); setOutFilters(EMPTY_FILTERS);
@@ -811,6 +866,39 @@ function App() {
           <div className="title">Student Collection Dashboard</div>
           <div className="spacer">
             <div className="user">{userEmail || "student.accounts@mdx.ac.ae"} · Student Accounts</div>
+            {phase === "loaded" && (
+              <div style={{ position: "relative" }}>
+                <button
+                  className="btn btn-outline notif-btn"
+                  type="button"
+                  title="Notifications"
+                  onClick={() => setNotifOpen((o) => !o)}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" style={{ display: "block" }}>
+                    <path
+                      fill="currentColor"
+                      d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"
+                    />
+                  </svg>
+                  {notifications.length > 0 && <span className="notif-badge">{notifications.length}</span>}
+                </button>
+                {notifOpen && (
+                  <div className="notif-panel">
+                    <div className="notif-header">
+                      <span>Notifications</span>
+                      {notifications.length > 0 && (
+                        <button type="button" onClick={() => setNotifications([])}>Clear all</button>
+                      )}
+                    </div>
+                    {notifications.length === 0 ? (
+                      <div className="notif-empty">No changes or payments since your last upload.</div>
+                    ) : (
+                      notifications.map((n, i) => <div className="notif-item" key={i}>{n.message}</div>)
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
             <button className="btn btn-outline" onClick={handleSignOut}>Sign out</button>
           </div>
         </div>
