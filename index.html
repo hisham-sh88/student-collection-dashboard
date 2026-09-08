@@ -280,6 +280,29 @@ function groupSum(payments, keyFn, sortKeyFn, limit) {
   return arr.slice(Math.max(0, arr.length - limit));
 }
 
+function buildDailySeries(payments, limit) {
+  const ONE_DAY = 24 * 60 * 60 * 1000;
+  const days = new Map();
+  payments.forEach((p) => {
+    if (!p.date) return;
+    const key = new Date(p.date.getFullYear(), p.date.getMonth(), p.date.getDate()).getTime();
+    days.set(key, (days.get(key) || 0) + p.amount);
+  });
+  if (!days.size) return [];
+  const times = Array.from(days.keys());
+  const minTime = Math.min(...times);
+  const maxTime = Math.max(...times);
+  const series = [];
+  for (let t = minTime; t <= maxTime; t += ONE_DAY) {
+    series.push({
+      label: new Date(t).toLocaleString("en-US", { day: "numeric", month: "short" }),
+      value: days.get(t) || 0,
+      sort: t,
+    });
+  }
+  return series.slice(Math.max(0, series.length - limit));
+}
+
 function computeTrend(payments, range) {
   const withDates = payments.filter((p) => p.date);
   if (!withDates.length) return { points: [], caption: "No payment dates found in the SAP Student Accounts Report." };
@@ -296,18 +319,13 @@ function computeTrend(payments, range) {
   if (range === "Weekly") {
     const points = groupSum(
       withDates,
-      (d) => "Wk " + isoWeek(d).week,
+      (d) => { const w = isoWeek(d); return `Wk ${w.week} '${String(w.year).slice(-2)}`; },
       (d) => { const w = isoWeek(d); return w.year * 100 + w.week; },
       12
     );
     return { points, caption: "Collection by week. AED." };
   }
-  const points = groupSum(
-    withDates,
-    (d) => d.toLocaleString("en-US", { day: "numeric", month: "short" }),
-    (d) => d.getTime(),
-    14
-  );
+  const points = buildDailySeries(withDates, 14);
   return { points, caption: "Collection by day. AED." };
 }
 
