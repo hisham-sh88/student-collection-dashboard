@@ -22,6 +22,8 @@
 <script type="text/babel" data-presets="react">
 const { useState, useMemo } = React;
 const LOGO_URL = "https://raw.githubusercontent.com/hisham-sh88/student-collection-dashboard/main/assets/mdx-logo.png";
+const SAVE_URL = "/api/save-data";
+const LOAD_URL = "/api/load-data";
 
 /* ============================== lib/format ============================== */
 
@@ -417,13 +419,14 @@ function buildSampleFiles() {
 function LoginScreen({ onSignIn }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [role, setRole] = useState("uploader");
   const [error, setError] = useState(false);
 
   function submit(e) {
     e.preventDefault();
     if (!email.trim() || !password) { setError(true); return; }
     setError(false);
-    onSignIn(email.trim());
+    onSignIn(email.trim(), role);
   }
 
   return (
@@ -436,6 +439,10 @@ function LoginScreen({ onSignIn }) {
         <form className="login-form" onSubmit={submit}>
           <h2>Sign in</h2>
           <div className="sub">Use your university staff account.</div>
+          <div className="role-toggle">
+            <button type="button" className={role === "uploader" ? "active" : ""} onClick={() => setRole("uploader")}>Uploader</button>
+            <button type="button" className={role === "reviewer" ? "active" : ""} onClick={() => setRole("reviewer")}>Reviewer</button>
+          </div>
           <label className="field">
             <span>Staff email</span>
             <input type="email" placeholder="name@mdx.ac.ae" value={email} onChange={(e) => setEmail(e.target.value)} />
@@ -446,7 +453,11 @@ function LoginScreen({ onSignIn }) {
           </label>
           {error && <div className="error-text">Enter your staff email and password to continue.</div>}
           <button type="submit" className="btn btn-primary">Sign in</button>
-          <div className="hint-text">Access is limited to Finance and Student Accounts staff.</div>
+          <div className="hint-text">
+            {role === "reviewer"
+              ? "Reviewers see the latest uploaded data. No upload controls."
+              : "Uploaders process the weekly SAP reports and publish the dashboard."}
+          </div>
         </form>
       </div>
     </div>
@@ -510,11 +521,30 @@ function UploadScreen({ files, errors, onFile, onProcess, onClear, onUseSample }
   );
 }
 
-function ProcessingScreen() {
+function ProcessingScreen({ message }) {
   return (
     <div className="processing-page">
       <div className="spinner" />
-      <div className="processing-line mono">Reading SAP exports · matching student records · aggregating by Level and Year</div>
+      <div className="processing-line mono">{message || "Reading SAP exports · matching student records · aggregating by Level and Year"}</div>
+    </div>
+  );
+}
+
+function EmptyReviewScreen({ reason, onRetry, onSignOut }) {
+  return (
+    <div className="empty-page">
+      <div className="empty-page-title">
+        {reason === "error" ? "Couldn't reach the data service" : "No data has been uploaded yet"}
+      </div>
+      <div className="empty-page-text">
+        {reason === "error"
+          ? "The dashboard couldn't load the last uploaded data. Ask an administrator to check the storage connection, then try again."
+          : "Once a member of the Finance team uploads the three SAP reports, the dashboard will appear here automatically."}
+      </div>
+      <div className="empty-page-actions">
+        <button className="btn btn-primary" type="button" onClick={onRetry}>Refresh</button>
+        <button className="btn btn-outline" type="button" onClick={onSignOut}>Sign out</button>
+      </div>
     </div>
   );
 }
@@ -753,9 +783,15 @@ function StudentModal({ student, onClose }) {
   );
 }
 
-function Dashboard({ students, payments, colFilters, outFilters, onColFilterChange, onOutFilterChange, trendRange, onTrendRangeChange, onOpenStudent, onClear }) {
+function Dashboard({ students, payments, colFilters, outFilters, onColFilterChange, onOutFilterChange, trendRange, onTrendRangeChange, onOpenStudent, onClear, readOnly, dataMeta, saveError, onDismissSaveError }) {
   return (
     <div className="dashboard">
+      {saveError && (
+        <div className="save-error-banner">
+          <span>{saveError}</span>
+          <button type="button" onClick={onDismissSaveError}>Dismiss</button>
+        </div>
+      )}
       <StatCards students={students} />
       <div className="two-col">
         <StudentPanel variant="collection" dark={false} title="Collection Summary" allStudents={students} filters={colFilters} onFilterChange={onColFilterChange} onOpenStudent={onOpenStudent} showExport />
@@ -763,8 +799,13 @@ function Dashboard({ students, payments, colFilters, outFilters, onColFilterChan
       </div>
       <TrendChart payments={payments} range={trendRange} onRangeChange={onTrendRangeChange} />
       <div className="bottom-row">
-        <button className="btn btn-outline" onClick={onClear}>Clear All and re-upload</button>
-        <div className="footer-note mono">Source: Balance Report · SAP Student Accounts Report · Enrolled Students Report</div>
+        {!readOnly && <button className="btn btn-outline" onClick={onClear}>Clear All and re-upload</button>}
+        <div className="footer-note mono">
+          Source: Balance Report · SAP Student Accounts Report · Enrolled Students Report
+          {dataMeta && dataMeta.uploadedAt && (
+            <span> · Last updated {new Date(dataMeta.uploadedAt).toLocaleString()} by {dataMeta.uploadedBy}</span>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -777,6 +818,10 @@ const EMPTY_FILTERS = { level: "All levels", year: "All years", status: "All sta
 function App() {
   const [phase, setPhase] = useState("login");
   const [userEmail, setUserEmail] = useState("");
+  const [role, setRole] = useState("uploader");
+  const [dataMeta, setDataMeta] = useState(null);
+  const [saveError, setSaveError] = useState(null);
+  const [emptyReason, setEmptyReason] = useState("empty");
 
   const [files, setFiles] = useState({ balance: null, accounts: null, enrolled: null });
   const [fileErrors, setFileErrors] = useState({});
@@ -798,7 +843,34 @@ function App() {
 
   const openStudent = decoratedStudents.find((s) => s.id === openId) || null;
 
-  function handleSignIn(email) { setUserEmail(email); setPhase("upload"); }
+  function handleSignIn(email, signInRole) {
+    setUserEmail(email);
+    setRole(signInRole);
+    if (signInRole === "reviewer") {
+      loadForReviewer();
+    } else {
+      setPhase("upload");
+    }
+  }
+
+  async function loadForReviewer() {
+    setPhase("fetching");
+    try {
+      const res = await fetch(LOAD_URL, { cache: "no-store" });
+      if (res.status === 404) { setEmptyReason("empty"); setPhase("empty"); return; }
+      if (!res.ok) throw new Error("status " + res.status);
+      const data = await res.json();
+      setStudents(data.students || []);
+      setPayments((data.payments || []).map((p) => ({ ...p, date: p.date ? new Date(p.date) : null })));
+      setNotifications(data.notifications || []);
+      setDataMeta({ uploadedAt: data.uploadedAt, uploadedBy: data.uploadedBy });
+      setColFilters(EMPTY_FILTERS); setOutFilters(EMPTY_FILTERS);
+      setPhase("loaded");
+    } catch (err) {
+      setEmptyReason("error");
+      setPhase("empty");
+    }
+  }
 
   function handleSignOut() {
     setPhase("login");
@@ -806,6 +878,7 @@ function App() {
     setFileErrors({});
     setStudents([]); setPayments([]); setOpenId(null);
     setNotifications([]); setNotifOpen(false);
+    setDataMeta(null); setSaveError(null);
   }
 
   function handleFile(key, file) {
@@ -827,6 +900,7 @@ function App() {
     setColFilters(EMPTY_FILTERS); setOutFilters(EMPTY_FILTERS);
     setOpenId(null);
     setNotifications([]); setNotifOpen(false);
+    setDataMeta(null); setSaveError(null);
     setPhase("upload");
   }
 
@@ -849,9 +923,45 @@ function App() {
     }
 
     const merged = mergeReports({ roster, collection, outstanding });
-    const prevSnapshot = loadSnapshot();
-    setNotifications(prevSnapshot ? computeChanges(prevSnapshot, merged) : []);
-    saveSnapshot(merged);
+
+    let prevData = null;
+    let backendReachable = true;
+    try {
+      const prevRes = await fetch(LOAD_URL, { cache: "no-store" });
+      if (prevRes.ok) prevData = await prevRes.json();
+      else if (prevRes.status !== 404) backendReachable = false;
+    } catch (err) {
+      backendReachable = false;
+    }
+
+    let changes = [];
+    if (prevData) {
+      const prevSnapshot = {};
+      (prevData.students || []).forEach((s) => { prevSnapshot[s.id] = { coll: s.coll, out: s.out, statusLabel: s.statusLabel }; });
+      changes = computeChanges(prevSnapshot, merged);
+    } else if (!backendReachable) {
+      const local = loadSnapshot();
+      if (local) changes = computeChanges(local, merged);
+    }
+
+    const uploadedAt = new Date().toISOString();
+    const uploadedBy = userEmail || "student.accounts@mdx.ac.ae";
+    let nextSaveError = null;
+    try {
+      const saveRes = await fetch(SAVE_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ students: merged, payments: paymentsList, notifications: changes, uploadedAt, uploadedBy }),
+      });
+      if (!saveRes.ok) throw new Error("status " + saveRes.status);
+    } catch (err) {
+      nextSaveError = "This upload wasn't saved for reviewers (storage isn't connected yet). Ask an administrator to connect Blob storage in Vercel, then re-upload.";
+      saveSnapshot(merged);
+    }
+
+    setNotifications(changes);
+    setDataMeta({ uploadedAt, uploadedBy });
+    setSaveError(nextSaveError);
     setStudents(merged);
     setPayments(paymentsList);
     setColFilters(EMPTY_FILTERS); setOutFilters(EMPTY_FILTERS);
@@ -912,6 +1022,12 @@ function App() {
 
       {phase === "processing" && <ProcessingScreen />}
 
+      {phase === "fetching" && <ProcessingScreen message="Loading the latest uploaded data…" />}
+
+      {phase === "empty" && (
+        <EmptyReviewScreen reason={emptyReason} onRetry={loadForReviewer} onSignOut={handleSignOut} />
+      )}
+
       {phase === "loaded" && (
         <Dashboard
           students={decoratedStudents}
@@ -924,6 +1040,10 @@ function App() {
           onTrendRangeChange={setTrendRange}
           onOpenStudent={setOpenId}
           onClear={handleClear}
+          readOnly={role === "reviewer"}
+          dataMeta={dataMeta}
+          saveError={saveError}
+          onDismissSaveError={() => setSaveError(null)}
         />
       )}
 

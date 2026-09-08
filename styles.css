@@ -98,6 +98,10 @@ button, input, select { font-family: inherit; }
 .error-text { font-size: 13px; color: var(--red); }
 .hint-text { font-size: 12px; color: var(--p300); }
 
+.role-toggle { display: flex; gap: 6px; background: var(--p50); border-radius: 999px; padding: 4px; }
+.role-toggle button { flex: 1; border: 0; border-radius: 999px; background: transparent; color: var(--p600); font-family: "Archivo", sans-serif; font-size: 13px; font-weight: 600; padding: 9px 14px; cursor: pointer; }
+.role-toggle button.active { background: var(--p700); color: #fff; }
+
 /* Upload */
 .upload-page { display: grid; place-items: center; padding: 64px 32px; }
 .upload-wrap { width: 100%; max-width: 1040px; }
@@ -260,3 +264,17 @@ button, input, select { font-family: inherit; }
 .notif-item { padding: 12px 16px; border-bottom: 1px solid var(--p50); font-size: 13px; color: var(--p600); }
 .notif-item:last-child { border-bottom: 0; }
 .notif-empty { padding: 20px 16px; font-size: 13px; color: var(--muted); text-align: center; }
+
+/* Empty review state */
+.empty-page { display: grid; place-items: center; padding: 140px 32px; text-align: center; }
+.empty-page-title { font-size: 32px; font-weight: 800; letter-spacing: -.02em; color: var(--p700); max-width: 28ch; }
+.empty-page-text { margin-top: 12px; font-size: 15px; color: var(--muted); max-width: 46ch; }
+.empty-page-actions { display: flex; gap: 14px; margin-top: 28px; }
+
+/* Save error banner */
+.save-error-banner {
+  display: flex; align-items: center; gap: 16px;
+  background: #fdecea; border: 1px solid #f3c6c1; color: #8a3226;
+  border-radius: 16px; padding: 14px 20px; font-size: 13px;
+}
+.save-error-banner button { margin-left: auto; border: 0; background: transparent; color: #8a3226; font-weight: 700; text-decoration: underline; cursor: pointer; font-size: 13px; }
