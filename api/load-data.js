@@ -1,4 +1,4 @@
-const { head } = require("@vercel/blob");
+const { get } = require("@vercel/blob");
 
 module.exports = async function handler(req, res) {
   if (req.method !== "GET") {
@@ -6,10 +6,15 @@ module.exports = async function handler(req, res) {
     return;
   }
   try {
-    const info = await head("latest-data.json", { storeId: process.env.scd_data_STORE_ID });
-    const upstream = await fetch(info.url, { cache: "no-store" });
-    if (!upstream.ok) throw new Error("Blob fetch failed with status " + upstream.status);
-    const data = await upstream.json();
+    const result = await get("latest-data.json", {
+      access: "private",
+      storeId: process.env.scd_data_STORE_ID,
+    });
+    if (!result || result.statusCode !== 200) {
+      res.status(404).json({ error: "No data uploaded yet" });
+      return;
+    }
+    const data = await new Response(result.stream).json();
     res.status(200).json(data);
   } catch (err) {
     const message = (err && err.message) || "Failed to load data";
