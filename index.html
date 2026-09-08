@@ -499,12 +499,15 @@ function useFilterOptions(students) {
   return useMemo(() => {
     const levels = Array.from(new Set(students.map((s) => s.level))).sort();
     const statuses = Array.from(new Set(students.map((s) => s.statusLabel))).sort();
-    return { levels, statuses };
+    const cohorts = Array.from(new Set(students.map((s) => s.cohort).filter((c) => c && c !== "—"))).sort(
+      (a, b) => new Date(a) - new Date(b)
+    );
+    return { levels, statuses, cohorts };
   }, [students]);
 }
 
 function StudentPanel({ variant, dark, title, allStudents, filters, onFilterChange, onOpenStudent, showExport }) {
-  const { levels, statuses } = useFilterOptions(allStudents);
+  const { levels, statuses, cohorts } = useFilterOptions(allStudents);
 
   const years = useMemo(() => {
     const pool = filters.level === "All levels" ? allStudents : allStudents.filter((s) => s.level === filters.level);
@@ -516,7 +519,8 @@ function StudentPanel({ variant, dark, title, allStudents, filters, onFilterChan
       (s) =>
         (filters.level === "All levels" || s.level === filters.level) &&
         (filters.year === "All years" || String(s.year) === String(filters.year)) &&
-        (filters.status === "All statuses" || s.statusLabel === filters.status)
+        (filters.status === "All statuses" || s.statusLabel === filters.status) &&
+        (filters.cohort === "All cohorts" || s.cohort === filters.cohort)
     );
   }, [allStudents, filters]);
 
@@ -555,6 +559,10 @@ function StudentPanel({ variant, dark, title, allStudents, filters, onFilterChan
           <select value={filters.status} onChange={(e) => onFilterChange({ status: e.target.value })}>
             <option>All statuses</option>
             {statuses.map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
+          <select value={filters.cohort} onChange={(e) => onFilterChange({ cohort: e.target.value })}>
+            <option>All cohorts</option>
+            {cohorts.map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
         </div>
         {variant === "collection" && (
@@ -716,7 +724,7 @@ function Dashboard({ students, payments, colFilters, outFilters, onColFilterChan
 
 /* ============================== App ============================== */
 
-const EMPTY_FILTERS = { level: "All levels", year: "All years", status: "All statuses" };
+const EMPTY_FILTERS = { level: "All levels", year: "All years", status: "All statuses", cohort: "All cohorts" };
 
 function App() {
   const [phase, setPhase] = useState("login");
