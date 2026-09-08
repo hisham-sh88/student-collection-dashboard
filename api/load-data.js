@@ -13,7 +13,7 @@ module.exports = async function handler(req, res) {
     res.status(200).json(data);
   } catch (err) {
     const message = (err && err.message) || "Failed to load data";
-    if (/not.?found/i.test(message) || (err && err.status === 404)) {
+    if (/not.?found|does not exist/i.test(message) || (err && err.status === 404)) {
       res.status(404).json({ error: "No data uploaded yet" });
       return;
     }
