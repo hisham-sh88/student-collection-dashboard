@@ -683,7 +683,7 @@ function useFilterOptions(students) {
   }, [students]);
 }
 
-function StudentPanel({ variant, dark, title, allStudents, filters, onFilterChange, onOpenStudent }) {
+function StudentPanel({ variant, dark, title, allStudents, filters, onFilterChange, onOpenStudent, searchTerm }) {
   const { levels, statuses, cohorts } = useFilterOptions(allStudents);
 
   const years = useMemo(() => {
@@ -692,14 +692,16 @@ function StudentPanel({ variant, dark, title, allStudents, filters, onFilterChan
   }, [allStudents, filters.level]);
 
   const filtered = useMemo(() => {
+    const search = (searchTerm || "").trim().toLowerCase();
     return allStudents.filter(
       (s) =>
         (filters.level === "All levels" || s.level === filters.level) &&
         (filters.year === "All years" || String(s.year) === String(filters.year)) &&
         (filters.status === "All statuses" || s.statusLabel === filters.status) &&
-        (filters.cohort === "All cohorts" || s.cohort === filters.cohort)
+        (filters.cohort === "All cohorts" || s.cohort === filters.cohort) &&
+        (!search || s.id.toLowerCase().includes(search) || s.name.toLowerCase().includes(search))
     );
-  }, [allStudents, filters]);
+  }, [allStudents, filters, searchTerm]);
 
   const breakdown = useMemo(() => {
     if (variant !== "collection") return [];
@@ -885,7 +887,7 @@ function StudentModal({ student, onClose }) {
   );
 }
 
-function Dashboard({ students, payments, colFilters, outFilters, onColFilterChange, onOutFilterChange, trendRange, onTrendRangeChange, onOpenStudent, onClear, readOnly, dataMeta, previousStudents, previousMeta, saveError, onDismissSaveError }) {
+function Dashboard({ students, payments, colFilters, outFilters, onColFilterChange, onOutFilterChange, trendRange, onTrendRangeChange, onOpenStudent, onClear, readOnly, dataMeta, previousStudents, previousMeta, saveError, onDismissSaveError, searchTerm, onSearchChange }) {
   return (
     <div className="dashboard">
       {saveError && (
@@ -895,9 +897,26 @@ function Dashboard({ students, payments, colFilters, outFilters, onColFilterChan
         </div>
       )}
       <StatCards students={students} />
+      <div className="search-bar">
+        <svg width="16" height="16" viewBox="0 0 24 24" className="search-icon">
+          <path
+            fill="currentColor"
+            d="M15.5 14h-.79l-.28-.27a6.47 6.47 0 0 0 1.48-5.34c-.47-2.78-2.79-5-5.59-5.34a6.505 6.505 0 0 0-7.27 7.27c.34 2.8 2.56 5.12 5.34 5.59a6.47 6.47 0 0 0 5.34-1.48l.27.28v.79l4.25 4.25c.41.41 1.08.41 1.49 0 .41-.41.41-1.08 0-1.49L15.5 14zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"
+          />
+        </svg>
+        <input
+          type="text"
+          placeholder="Search by MISIS (ID) or Name"
+          value={searchTerm}
+          onChange={(e) => onSearchChange(e.target.value)}
+        />
+        {searchTerm && (
+          <button type="button" className="search-clear" onClick={() => onSearchChange("")}>Clear</button>
+        )}
+      </div>
       <div className="two-col">
-        <StudentPanel variant="collection" dark={false} title="Collection Summary" allStudents={students} filters={colFilters} onFilterChange={onColFilterChange} onOpenStudent={onOpenStudent} />
-        <StudentPanel variant="outstanding" dark={true} title="Outstanding Balance" allStudents={students} filters={outFilters} onFilterChange={onOutFilterChange} onOpenStudent={onOpenStudent} />
+        <StudentPanel variant="collection" dark={false} title="Collection Summary" allStudents={students} filters={colFilters} onFilterChange={onColFilterChange} onOpenStudent={onOpenStudent} searchTerm={searchTerm} />
+        <StudentPanel variant="outstanding" dark={true} title="Outstanding Balance" allStudents={students} filters={outFilters} onFilterChange={onOutFilterChange} onOpenStudent={onOpenStudent} searchTerm={searchTerm} />
       </div>
       <TrendChart payments={payments} range={trendRange} onRangeChange={onTrendRangeChange} />
       <div className="bottom-row">
@@ -948,6 +967,7 @@ function App() {
 
   const [colFilters, setColFilters] = useState(EMPTY_FILTERS);
   const [outFilters, setOutFilters] = useState(EMPTY_FILTERS);
+  const [searchTerm, setSearchTerm] = useState("");
   const [trendRange, setTrendRange] = useState("Monthly");
   const [openId, setOpenId] = useState(null);
   const [notifications, setNotifications] = useState([]);
@@ -999,6 +1019,7 @@ function App() {
     setNotifications([]); setNotifOpen(false);
     setDataMeta(null); setSaveError(null);
     setPreviousStudents(null); setPreviousMeta(null);
+    setSearchTerm("");
   }
 
   function handleFile(key, file) {
@@ -1018,6 +1039,7 @@ function App() {
     setFileErrors({});
     setStudents([]); setPayments([]);
     setColFilters(EMPTY_FILTERS); setOutFilters(EMPTY_FILTERS);
+    setSearchTerm("");
     setOpenId(null);
     setNotifications([]); setNotifOpen(false);
     setDataMeta(null); setSaveError(null);
@@ -1173,6 +1195,8 @@ function App() {
           previousMeta={previousMeta}
           saveError={saveError}
           onDismissSaveError={() => setSaveError(null)}
+          searchTerm={searchTerm}
+          onSearchChange={setSearchTerm}
         />
       )}
 

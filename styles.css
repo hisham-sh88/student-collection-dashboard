@@ -159,6 +159,27 @@ button, input, select { font-family: inherit; }
 .stat-card.dark .stat-value { font-size: 88px; line-height: .95; }
 .stat-sub { font-size: 14px; color: rgba(255,255,255,.6); }
 
+.search-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #fff;
+  border: 2px solid var(--p100);
+  border-radius: 999px;
+  padding: 12px 20px;
+}
+.search-bar:focus-within { border-color: var(--p700); }
+.search-icon { flex-shrink: 0; color: var(--p300); }
+.search-bar input {
+  flex: 1;
+  border: 0;
+  outline: none;
+  font-size: 14px;
+  color: var(--p700);
+  background: transparent;
+}
+.search-clear { border: 0; background: transparent; color: var(--p500); font-size: 12px; font-weight: 600; cursor: pointer; text-decoration: underline; flex-shrink: 0; }
+
 .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: start; }
 @media (max-width: 960px) { .two-col { grid-template-columns: 1fr; } }
 
