@@ -1,4 +1,4 @@
-const { put } = require("@vercel/blob");
+const { put, get } = require("@vercel/blob");
 
 module.exports = async function handler(req, res) {
   if (req.method !== "POST") {
@@ -14,6 +14,26 @@ module.exports = async function handler(req, res) {
       uploadedAt: body.uploadedAt || new Date().toISOString(),
       uploadedBy: body.uploadedBy || "unknown",
     });
+
+    try {
+      const existing = await get("latest-data.json", {
+        access: "private",
+        storeId: process.env.scd_data_STORE_ID,
+      });
+      if (existing && existing.statusCode === 200) {
+        const existingText = await new Response(existing.stream).text();
+        await put("previous-data.json", existingText, {
+          access: "private",
+          addRandomSuffix: false,
+          allowOverwrite: true,
+          contentType: "application/json",
+          storeId: process.env.scd_data_STORE_ID,
+        });
+      }
+    } catch (snapshotErr) {
+      // No existing upload to snapshot yet (first-ever upload) — proceed regardless.
+    }
+
     await put("latest-data.json", payload, {
       access: "private",
       addRandomSuffix: false,

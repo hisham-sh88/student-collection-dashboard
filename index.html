@@ -380,26 +380,80 @@ function computeChanges(prevSnapshot, students) {
 
 /* ============================== lib/exportExcel ============================== */
 
-function exportStudentsToExcel(students, filename) {
-  const rows = students.map((s) => ({
-    "Student ID": s.id,
-    "Name": s.name,
-    "Programme": s.programme,
-    "Level": s.level,
-    "Year": s.year,
-    "Cohort": s.cohort,
-    "Status": s.statusLabel,
-    "Email": s.email,
-    "Mobile": s.mobile,
-    "Collection (AED)": s.coll,
-    "Last Payment Date": formatDate(s.lastPaymentDate) || "—",
-    "Outstanding (AED)": s.out,
-    "Balance As Of": formatDate(s.balanceDate) || "—",
-  }));
+const REPORT_CATEGORIES = ["IFP", "UG Year 1", "UG Year 2", "UG Year 3", "PG Year 1", "PG Year 2"];
+
+function categoryFor(student) {
+  if (student.level === "Foundation") return "IFP";
+  if (student.level === "Undergraduate") return `UG Year ${student.year}`;
+  if (student.level === "Postgraduate") return `PG Year ${student.year}`;
+  return "Other";
+}
+
+function formatDDMM(iso) {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (isNaN(d)) return null;
+  return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function buildCategoryTotals(students) {
+  const totals = new Map();
+  (students || []).forEach((s) => {
+    const cat = categoryFor(s);
+    if (!totals.has(cat)) totals.set(cat, { out: 0, coll: 0, count: 0 });
+    const t = totals.get(cat);
+    t.out += s.out || 0;
+    t.coll += s.coll || 0;
+    t.count += 1;
+  });
+  return totals;
+}
+
+function exportWeeklySummary(students, previousStudents, currentDate, previousDate) {
+  const currentTotals = buildCategoryTotals(students);
+  const previousTotals = buildCategoryTotals(previousStudents);
+
+  const categories = [...REPORT_CATEGORIES];
+  [currentTotals, previousTotals].forEach((totals) => {
+    totals.forEach((_, cat) => {
+      if (!categories.includes(cat)) categories.push(cat);
+    });
+  });
+
+  const prevLabel = formatDDMM(previousDate) || "Previous";
+  const currLabel = formatDDMM(currentDate) || "Current";
+  const prevOutCol = `Fee o/s-${prevLabel}`;
+  const prevCountCol = `Students-${prevLabel}`;
+  const currOutCol = `Fee o/s-${currLabel}`;
+  const currCountCol = `Students-${currLabel}`;
+
+  const empty = { out: 0, coll: 0, count: 0 };
+  const rows = categories.map((cat) => {
+    const curr = currentTotals.get(cat) || empty;
+    const prev = previousTotals.get(cat) || empty;
+    return {
+      "Description": cat,
+      [prevOutCol]: prev.out,
+      [prevCountCol]: prev.count,
+      [currOutCol]: curr.out,
+      [currCountCol]: curr.count,
+      "Collections": curr.coll - prev.coll,
+    };
+  });
+
+  rows.push({
+    "Description": "Total AED..>>",
+    [prevOutCol]: rows.reduce((a, r) => a + r[prevOutCol], 0),
+    [prevCountCol]: rows.reduce((a, r) => a + r[prevCountCol], 0),
+    [currOutCol]: rows.reduce((a, r) => a + r[currOutCol], 0),
+    [currCountCol]: rows.reduce((a, r) => a + r[currCountCol], 0),
+    "Collections": rows.reduce((a, r) => a + r["Collections"], 0),
+  });
+
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.json_to_sheet(rows);
-  XLSX.utils.book_append_sheet(wb, ws, "Students");
-  XLSX.writeFile(wb, filename);
+  XLSX.utils.book_append_sheet(wb, ws, "Weekly Summary");
+  XLSX.writeFile(wb, `Weekly_Collection_Report_${currLabel.replace("/", "-")}.xlsx`);
 }
 
 /* ============================== lib/sampleWorkbooks ============================== */
@@ -625,7 +679,7 @@ function useFilterOptions(students) {
   }, [students]);
 }
 
-function StudentPanel({ variant, dark, title, allStudents, filters, onFilterChange, onOpenStudent, showExport }) {
+function StudentPanel({ variant, dark, title, allStudents, filters, onFilterChange, onOpenStudent }) {
   const { levels, statuses, cohorts } = useFilterOptions(allStudents);
 
   const years = useMemo(() => {
@@ -730,11 +784,6 @@ function StudentPanel({ variant, dark, title, allStudents, filters, onFilterChan
           <div className="footer-note mono">
             {filtered.length} {filtered.length === 1 ? "student" : "students"} · {variant === "collection" ? "AED" : "outstanding AED"} {fmt(total)}
           </div>
-          {showExport && (
-            <button className={dark ? "btn btn-outline" : "btn btn-primary"} style={{ marginLeft: "auto" }} onClick={() => exportStudentsToExcel(filtered, `${variant}-export.xlsx`)}>
-              Export to Excel
-            </button>
-          )}
         </div>
       </div>
     </div>
@@ -832,7 +881,7 @@ function StudentModal({ student, onClose }) {
   );
 }
 
-function Dashboard({ students, payments, colFilters, outFilters, onColFilterChange, onOutFilterChange, trendRange, onTrendRangeChange, onOpenStudent, onClear, readOnly, dataMeta, saveError, onDismissSaveError }) {
+function Dashboard({ students, payments, colFilters, outFilters, onColFilterChange, onOutFilterChange, trendRange, onTrendRangeChange, onOpenStudent, onClear, readOnly, dataMeta, previousStudents, previousMeta, saveError, onDismissSaveError }) {
   return (
     <div className="dashboard">
       {saveError && (
@@ -843,12 +892,25 @@ function Dashboard({ students, payments, colFilters, outFilters, onColFilterChan
       )}
       <StatCards students={students} />
       <div className="two-col">
-        <StudentPanel variant="collection" dark={false} title="Collection Summary" allStudents={students} filters={colFilters} onFilterChange={onColFilterChange} onOpenStudent={onOpenStudent} showExport />
-        <StudentPanel variant="outstanding" dark={true} title="Outstanding Balance" allStudents={students} filters={outFilters} onFilterChange={onOutFilterChange} onOpenStudent={onOpenStudent} showExport={false} />
+        <StudentPanel variant="collection" dark={false} title="Collection Summary" allStudents={students} filters={colFilters} onFilterChange={onColFilterChange} onOpenStudent={onOpenStudent} />
+        <StudentPanel variant="outstanding" dark={true} title="Outstanding Balance" allStudents={students} filters={outFilters} onFilterChange={onOutFilterChange} onOpenStudent={onOpenStudent} />
       </div>
       <TrendChart payments={payments} range={trendRange} onRangeChange={onTrendRangeChange} />
       <div className="bottom-row">
         {!readOnly && <button className="btn btn-outline" onClick={onClear}>Clear All and re-upload</button>}
+        <button
+          className="btn btn-primary"
+          onClick={() =>
+            exportWeeklySummary(
+              students,
+              previousStudents,
+              dataMeta && dataMeta.uploadedAt,
+              previousMeta && previousMeta.uploadedAt
+            )
+          }
+        >
+          Export Weekly Summary
+        </button>
         <div className="footer-note mono">
           Source: Balance Report · SAP Student Accounts Report · Enrolled Students Report
           {dataMeta && dataMeta.uploadedAt && (
@@ -869,6 +931,8 @@ function App() {
   const [userEmail, setUserEmail] = useState("");
   const [role, setRole] = useState("uploader");
   const [dataMeta, setDataMeta] = useState(null);
+  const [previousStudents, setPreviousStudents] = useState(null);
+  const [previousMeta, setPreviousMeta] = useState(null);
   const [saveError, setSaveError] = useState(null);
   const [emptyReason, setEmptyReason] = useState("empty");
 
@@ -913,6 +977,8 @@ function App() {
       setPayments((data.payments || []).map((p) => ({ ...p, date: p.date ? new Date(p.date) : null })));
       setNotifications(data.notifications || []);
       setDataMeta({ uploadedAt: data.uploadedAt, uploadedBy: data.uploadedBy });
+      setPreviousStudents(data.previous ? data.previous.students || [] : null);
+      setPreviousMeta(data.previous ? { uploadedAt: data.previous.uploadedAt } : null);
       setColFilters(EMPTY_FILTERS); setOutFilters(EMPTY_FILTERS);
       setPhase("loaded");
     } catch (err) {
@@ -928,6 +994,7 @@ function App() {
     setStudents([]); setPayments([]); setOpenId(null);
     setNotifications([]); setNotifOpen(false);
     setDataMeta(null); setSaveError(null);
+    setPreviousStudents(null); setPreviousMeta(null);
   }
 
   function handleFile(key, file) {
@@ -950,6 +1017,7 @@ function App() {
     setOpenId(null);
     setNotifications([]); setNotifOpen(false);
     setDataMeta(null); setSaveError(null);
+    setPreviousStudents(null); setPreviousMeta(null);
     setPhase("upload");
   }
 
@@ -1014,6 +1082,8 @@ function App() {
 
     setNotifications(changes);
     setDataMeta({ uploadedAt, uploadedBy });
+    setPreviousStudents(prevData ? prevData.students || [] : null);
+    setPreviousMeta(prevData ? { uploadedAt: prevData.uploadedAt } : null);
     setSaveError(nextSaveError);
     setStudents(merged);
     setPayments(paymentsList);
@@ -1095,6 +1165,8 @@ function App() {
           onClear={handleClear}
           readOnly={role === "reviewer"}
           dataMeta={dataMeta}
+          previousStudents={previousStudents}
+          previousMeta={previousMeta}
           saveError={saveError}
           onDismissSaveError={() => setSaveError(null)}
         />
