@@ -420,8 +420,12 @@ function exportWeeklySummary(students, previousStudents, currentDate, previousDa
     });
   });
 
-  const prevLabel = formatDDMM(previousDate) || "Previous";
-  const currLabel = formatDDMM(currentDate) || "Current";
+  let prevLabel = formatDDMM(previousDate) || "Previous";
+  let currLabel = formatDDMM(currentDate) || "Current";
+  if (prevLabel === currLabel) {
+    prevLabel = `${prevLabel} (prev)`;
+    currLabel = `${currLabel} (latest)`;
+  }
   const prevOutCol = `Fee o/s-${prevLabel}`;
   const prevCountCol = `Students-${prevLabel}`;
   const currOutCol = `Fee o/s-${currLabel}`;
@@ -453,7 +457,7 @@ function exportWeeklySummary(students, previousStudents, currentDate, previousDa
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.json_to_sheet(rows);
   XLSX.utils.book_append_sheet(wb, ws, "Weekly Summary");
-  XLSX.writeFile(wb, `Weekly_Collection_Report_${currLabel.replace("/", "-")}.xlsx`);
+  XLSX.writeFile(wb, `Weekly_Collection_Report_${currLabel.replace(/[\/\s()]+/g, "-")}.xlsx`);
 }
 
 /* ============================== lib/sampleWorkbooks ============================== */
