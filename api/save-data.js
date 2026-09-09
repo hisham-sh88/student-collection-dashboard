@@ -7,11 +7,12 @@ module.exports = async function handler(req, res) {
   }
   try {
     const body = req.body && typeof req.body === "object" ? req.body : JSON.parse(req.body || "{}");
+    const uploadedAt = body.uploadedAt || new Date().toISOString();
     const payload = JSON.stringify({
       students: body.students || [],
       payments: body.payments || [],
       notifications: body.notifications || [],
-      uploadedAt: body.uploadedAt || new Date().toISOString(),
+      uploadedAt,
       uploadedBy: body.uploadedBy || "unknown",
     });
 
@@ -32,6 +33,19 @@ module.exports = async function handler(req, res) {
       }
     } catch (snapshotErr) {
       // No existing upload to snapshot yet (first-ever upload) — proceed regardless.
+    }
+
+    try {
+      const historyPathname = `history/${new Date(uploadedAt).getTime()}.json`;
+      await put(historyPathname, payload, {
+        access: "private",
+        addRandomSuffix: false,
+        allowOverwrite: true,
+        contentType: "application/json",
+        storeId: process.env.scd_data_STORE_ID,
+      });
+    } catch (historyErr) {
+      // Archiving is best-effort — never block the live save on it.
     }
 
     await put("latest-data.json", payload, {

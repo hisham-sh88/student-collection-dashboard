@@ -24,6 +24,7 @@ const { useState, useMemo } = React;
 const LOGO_URL = "https://raw.githubusercontent.com/hisham-sh88/student-collection-dashboard/main/assets/mdx-logo.png";
 const SAVE_URL = "/api/save-data";
 const LOAD_URL = "/api/load-data";
+const HISTORY_URL = "/api/history";
 
 /* ============================== lib/format ============================== */
 
@@ -887,13 +888,49 @@ function StudentModal({ student, onClose }) {
   );
 }
 
-function Dashboard({ students, payments, colFilters, outFilters, onColFilterChange, onOutFilterChange, trendRange, onTrendRangeChange, onOpenStudent, onClear, readOnly, dataMeta, previousStudents, previousMeta, saveError, onDismissSaveError, searchTerm, onSearchChange }) {
+function HistoryModal({ open, entries, loading, error, onSelect, onClose }) {
+  if (!open) return null;
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-head">
+          <div>
+            <h2>Past Reports</h2>
+            <div className="modal-id mono">Every processed upload, kept permanently</div>
+          </div>
+          <button className="modal-close" onClick={onClose}>Close</button>
+        </div>
+        <div className="history-list">
+          {loading && <div className="history-empty">Loading archived reports…</div>}
+          {!loading && error && <div className="history-empty">{error}</div>}
+          {!loading && !error && entries.length === 0 && (
+            <div className="history-empty">No archived reports yet. They appear here after each upload.</div>
+          )}
+          {!loading && !error && entries.map((entry) => (
+            <button key={entry.pathname} className="history-row" onClick={() => onSelect(entry.pathname)}>
+              <span>{new Date(entry.uploadedAt).toLocaleString()}</span>
+              <span className="history-row-arrow">View →</span>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Dashboard({ students, payments, colFilters, outFilters, onColFilterChange, onOutFilterChange, trendRange, onTrendRangeChange, onOpenStudent, onClear, readOnly, dataMeta, previousStudents, previousMeta, saveError, onDismissSaveError, searchTerm, onSearchChange, viewingHistory, onOpenHistory, onExitHistory }) {
   return (
     <div className="dashboard">
       {saveError && (
         <div className="save-error-banner">
           <span>{saveError}</span>
           <button type="button" onClick={onDismissSaveError}>Dismiss</button>
+        </div>
+      )}
+      {viewingHistory && (
+        <div className="history-banner">
+          <span>Viewing archived report from {dataMeta && dataMeta.uploadedAt ? new Date(dataMeta.uploadedAt).toLocaleString() : "—"}{dataMeta && dataMeta.uploadedBy ? ` · uploaded by ${dataMeta.uploadedBy}` : ""}</span>
+          <button type="button" onClick={onExitHistory}>Back to current</button>
         </div>
       )}
       <StatCards students={students} />
@@ -920,20 +957,23 @@ function Dashboard({ students, payments, colFilters, outFilters, onColFilterChan
       </div>
       <TrendChart payments={payments} range={trendRange} onRangeChange={onTrendRangeChange} />
       <div className="bottom-row">
-        {!readOnly && <button className="btn btn-outline" onClick={onClear}>Clear All and re-upload</button>}
-        <button
-          className="btn btn-primary"
-          onClick={() =>
-            exportWeeklySummary(
-              students,
-              previousStudents,
-              dataMeta && dataMeta.uploadedAt,
-              previousMeta && previousMeta.uploadedAt
-            )
-          }
-        >
-          Export Weekly Summary
-        </button>
+        {!readOnly && !viewingHistory && <button className="btn btn-outline" onClick={onClear}>Clear All and re-upload</button>}
+        <button className="btn btn-outline" onClick={onOpenHistory}>View Past Reports</button>
+        {!viewingHistory && (
+          <button
+            className="btn btn-primary"
+            onClick={() =>
+              exportWeeklySummary(
+                students,
+                previousStudents,
+                dataMeta && dataMeta.uploadedAt,
+                previousMeta && previousMeta.uploadedAt
+              )
+            }
+          >
+            Export Weekly Summary
+          </button>
+        )}
         <div className="footer-note mono">
           Source: Balance Report · SAP Student Accounts Report · Enrolled Students Report
           {dataMeta && dataMeta.uploadedAt && (
@@ -965,6 +1005,12 @@ function App() {
   const [students, setStudents] = useState([]);
   const [payments, setPayments] = useState([]);
 
+  const [historyModalOpen, setHistoryModalOpen] = useState(false);
+  const [historyEntries, setHistoryEntries] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState(null);
+  const [historyView, setHistoryView] = useState(null);
+
   const [colFilters, setColFilters] = useState(EMPTY_FILTERS);
   const [outFilters, setOutFilters] = useState(EMPTY_FILTERS);
   const [searchTerm, setSearchTerm] = useState("");
@@ -973,12 +1019,58 @@ function App() {
   const [notifications, setNotifications] = useState([]);
   const [notifOpen, setNotifOpen] = useState(false);
 
+  const activeStudents = historyView ? historyView.students : students;
+  const activePayments = historyView ? historyView.payments : payments;
+  const activeDataMeta = historyView ? historyView.dataMeta : dataMeta;
+
   const decoratedStudents = useMemo(
-    () => students.map((s) => { const b = badgeFor(s.status); return { ...s, badgeBg: b.bg, badgeFg: b.fg }; }),
-    [students]
+    () => activeStudents.map((s) => { const b = badgeFor(s.status); return { ...s, badgeBg: b.bg, badgeFg: b.fg }; }),
+    [activeStudents]
   );
 
   const openStudent = decoratedStudents.find((s) => s.id === openId) || null;
+
+  async function openHistory() {
+    setHistoryModalOpen(true);
+    setHistoryLoading(true);
+    setHistoryError(null);
+    try {
+      const res = await fetch(HISTORY_URL, { cache: "no-store" });
+      if (!res.ok) throw new Error("status " + res.status);
+      const data = await res.json();
+      setHistoryEntries(data.entries || []);
+    } catch (err) {
+      setHistoryError("Couldn't load the report history. Try again.");
+    } finally {
+      setHistoryLoading(false);
+    }
+  }
+
+  async function selectHistoryEntry(pathname) {
+    setHistoryLoading(true);
+    setHistoryError(null);
+    try {
+      const res = await fetch(`${HISTORY_URL}?pathname=${encodeURIComponent(pathname)}`, { cache: "no-store" });
+      if (!res.ok) throw new Error("status " + res.status);
+      const data = await res.json();
+      setHistoryView({
+        students: data.students || [],
+        payments: (data.payments || []).map((p) => ({ ...p, date: p.date ? new Date(p.date) : null })),
+        dataMeta: { uploadedAt: data.uploadedAt, uploadedBy: data.uploadedBy },
+      });
+      setColFilters(EMPTY_FILTERS); setOutFilters(EMPTY_FILTERS); setSearchTerm("");
+      setHistoryModalOpen(false);
+    } catch (err) {
+      setHistoryError("Couldn't load that report. Try again.");
+    } finally {
+      setHistoryLoading(false);
+    }
+  }
+
+  function exitHistory() {
+    setHistoryView(null);
+    setColFilters(EMPTY_FILTERS); setOutFilters(EMPTY_FILTERS); setSearchTerm("");
+  }
 
   function handleSignIn(email, signInRole) {
     setUserEmail(email);
@@ -1020,6 +1112,7 @@ function App() {
     setDataMeta(null); setSaveError(null);
     setPreviousStudents(null); setPreviousMeta(null);
     setSearchTerm("");
+    setHistoryView(null); setHistoryModalOpen(false); setHistoryEntries([]); setHistoryError(null);
   }
 
   function handleFile(key, file) {
@@ -1044,6 +1137,7 @@ function App() {
     setNotifications([]); setNotifOpen(false);
     setDataMeta(null); setSaveError(null);
     setPreviousStudents(null); setPreviousMeta(null);
+    setHistoryView(null); setHistoryModalOpen(false); setHistoryEntries([]); setHistoryError(null);
     setPhase("upload");
   }
 
@@ -1180,7 +1274,7 @@ function App() {
       {phase === "loaded" && (
         <Dashboard
           students={decoratedStudents}
-          payments={payments}
+          payments={activePayments}
           colFilters={colFilters}
           outFilters={outFilters}
           onColFilterChange={(patch) => setColFilters((f) => ({ ...f, ...patch }))}
@@ -1190,17 +1284,28 @@ function App() {
           onOpenStudent={setOpenId}
           onClear={handleClear}
           readOnly={role === "reviewer"}
-          dataMeta={dataMeta}
+          dataMeta={activeDataMeta}
           previousStudents={previousStudents}
           previousMeta={previousMeta}
           saveError={saveError}
           onDismissSaveError={() => setSaveError(null)}
           searchTerm={searchTerm}
           onSearchChange={setSearchTerm}
+          viewingHistory={!!historyView}
+          onOpenHistory={openHistory}
+          onExitHistory={exitHistory}
         />
       )}
 
       <StudentModal student={openStudent} onClose={() => setOpenId(null)} />
+      <HistoryModal
+        open={historyModalOpen}
+        entries={historyEntries}
+        loading={historyLoading}
+        error={historyError}
+        onSelect={selectHistoryEntry}
+        onClose={() => setHistoryModalOpen(false)}
+      />
     </div>
   );
 }
