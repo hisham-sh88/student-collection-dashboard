@@ -959,21 +959,19 @@ function Dashboard({ students, payments, colFilters, outFilters, onColFilterChan
       <div className="bottom-row">
         {!readOnly && !viewingHistory && <button className="btn btn-outline" onClick={onClear}>Clear All and re-upload</button>}
         <button className="btn btn-outline" onClick={onOpenHistory}>View Past Reports</button>
-        {!viewingHistory && (
-          <button
-            className="btn btn-primary"
-            onClick={() =>
-              exportWeeklySummary(
-                students,
-                previousStudents,
-                dataMeta && dataMeta.uploadedAt,
-                previousMeta && previousMeta.uploadedAt
-              )
-            }
-          >
-            Export Weekly Summary
-          </button>
-        )}
+        <button
+          className="btn btn-primary"
+          onClick={() =>
+            exportWeeklySummary(
+              students,
+              previousStudents,
+              dataMeta && dataMeta.uploadedAt,
+              previousMeta && previousMeta.uploadedAt
+            )
+          }
+        >
+          Export to Excel
+        </button>
         <div className="footer-note mono">
           Source: Balance Report · SAP Student Accounts Report · Enrolled Students Report
           {dataMeta && dataMeta.uploadedAt && (
@@ -1022,6 +1020,10 @@ function App() {
   const activeStudents = historyView ? historyView.students : students;
   const activePayments = historyView ? historyView.payments : payments;
   const activeDataMeta = historyView ? historyView.dataMeta : dataMeta;
+  const activePreviousStudents = historyView ? historyView.previousStudents : previousStudents;
+  const activePreviousMeta = historyView
+    ? (historyView.previousUploadedAt ? { uploadedAt: historyView.previousUploadedAt } : null)
+    : previousMeta;
 
   const decoratedStudents = useMemo(
     () => activeStudents.map((s) => { const b = badgeFor(s.status); return { ...s, badgeBg: b.bg, badgeFg: b.fg }; }),
@@ -1053,10 +1055,30 @@ function App() {
       const res = await fetch(`${HISTORY_URL}?pathname=${encodeURIComponent(pathname)}`, { cache: "no-store" });
       if (!res.ok) throw new Error("status " + res.status);
       const data = await res.json();
+
+      let priorStudents = null;
+      let priorUploadedAt = null;
+      const index = historyEntries.findIndex((e) => e.pathname === pathname);
+      const priorEntry = index >= 0 ? historyEntries[index + 1] : null;
+      if (priorEntry) {
+        try {
+          const priorRes = await fetch(`${HISTORY_URL}?pathname=${encodeURIComponent(priorEntry.pathname)}`, { cache: "no-store" });
+          if (priorRes.ok) {
+            const priorData = await priorRes.json();
+            priorStudents = priorData.students || [];
+            priorUploadedAt = priorData.uploadedAt;
+          }
+        } catch (priorErr) {
+          // No earlier snapshot available for comparison — export will just show this week alone.
+        }
+      }
+
       setHistoryView({
         students: data.students || [],
         payments: (data.payments || []).map((p) => ({ ...p, date: p.date ? new Date(p.date) : null })),
         dataMeta: { uploadedAt: data.uploadedAt, uploadedBy: data.uploadedBy },
+        previousStudents: priorStudents,
+        previousUploadedAt: priorUploadedAt,
       });
       setColFilters(EMPTY_FILTERS); setOutFilters(EMPTY_FILTERS); setSearchTerm("");
       setHistoryModalOpen(false);
@@ -1285,8 +1307,8 @@ function App() {
           onClear={handleClear}
           readOnly={role === "reviewer"}
           dataMeta={activeDataMeta}
-          previousStudents={previousStudents}
-          previousMeta={previousMeta}
+          previousStudents={activePreviousStudents}
+          previousMeta={activePreviousMeta}
           saveError={saveError}
           onDismissSaveError={() => setSaveError(null)}
           searchTerm={searchTerm}
