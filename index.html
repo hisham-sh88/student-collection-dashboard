@@ -410,22 +410,27 @@ function buildCategoryTotals(students) {
   return totals;
 }
 
-function cohortInfo(student) {
-  const raw = String((student && student.cohort) || "").trim();
-  const lower = raw.toLowerCase();
-  const yearMatch = raw.match(/(\d{4})/);
-  const year = yearMatch ? parseInt(yearMatch[1], 10) : null;
-  if (year === null) return null;
+const MONTH_ORDER = { jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5, jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11 };
 
-  if (lower.startsWith("sep")) return { label: `September ${year} Intake`, academicYear: year, order: 0 };
-  if (lower.startsWith("jan")) return { label: `January ${year} Intake`, academicYear: year - 1, order: 1 };
-  if (lower.startsWith("apr")) return { label: `April ${year} Intake`, academicYear: year - 1, order: 2 };
-  return null;
+function cohortRaw(student) {
+  return String((student && student.cohort) || "").trim();
 }
 
 function intakeFor(student) {
-  const info = cohortInfo(student);
-  return info ? info.label : "Other Intake";
+  const raw = cohortRaw(student);
+  return raw ? `${raw} Intake` : "Unspecified Intake";
+}
+
+function intakeSortKey(raw) {
+  const lower = raw.toLowerCase();
+  const yearMatch = lower.match(/(\d{4})/);
+  const year = yearMatch ? parseInt(yearMatch[1], 10) : null;
+  let monthIdx = null;
+  for (const key in MONTH_ORDER) {
+    if (lower.includes(key)) { monthIdx = MONTH_ORDER[key]; break; }
+  }
+  if (year === null) return Number.MAX_SAFE_INTEGER;
+  return year * 12 + (monthIdx !== null ? monthIdx : 0);
 }
 
 function buildCohortBlockRows(studentsForIntake, previousForIntake) {
@@ -470,17 +475,14 @@ function exportWeeklySummaryByCohort(students, previousStudents, currentDate, pr
   }
   const header = ["Description", `Fee o/s-${prevLabel}`, `Students-${prevLabel}`, `Fee o/s-${currLabel}`, `Students-${currLabel}`, "Collections"];
 
-  const cohortsByLabel = new Map();
-  let hasOther = false;
+  const rawByLabel = new Map();
   [...allStudents, ...allPrevious].forEach((s) => {
-    const info = cohortInfo(s);
-    if (info) cohortsByLabel.set(info.label, info);
-    else hasOther = true;
+    const label = intakeFor(s);
+    if (!rawByLabel.has(label)) rawByLabel.set(label, cohortRaw(s));
   });
-  const intakesPresent = Array.from(cohortsByLabel.values())
-    .sort((a, b) => a.academicYear - b.academicYear || a.order - b.order)
-    .map((info) => info.label);
-  if (hasOther) intakesPresent.push("Other Intake");
+  const intakesPresent = Array.from(rawByLabel.entries())
+    .sort((a, b) => intakeSortKey(a[1]) - intakeSortKey(b[1]) || a[0].localeCompare(b[0]))
+    .map(([label]) => label);
 
   const aoa = [];
   const merges = [];
