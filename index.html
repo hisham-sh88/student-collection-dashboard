@@ -489,6 +489,27 @@ function exportWeeklySummaryByCohort(students, previousStudents, currentDate, pr
   XLSX.writeFile(wb, `Weekly_Collection_By_Cohort_${currLabel.replace(/[\/\s()]+/g, "-")}.xlsx`);
 }
 
+function localDayKey(iso) {
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+}
+
+async function findDayBeforeReport(currentUploadedAt) {
+  const res = await fetch(HISTORY_URL, { cache: "no-store" });
+  if (!res.ok) throw new Error("status " + res.status);
+  const data = await res.json();
+  const entries = data.entries || [];
+  const currentKey = localDayKey(currentUploadedAt);
+  const currentIndex = entries.findIndex((e) => e.uploadedAt === currentUploadedAt);
+  const searchStart = currentIndex >= 0 ? currentIndex + 1 : 0;
+  const match = entries.slice(searchStart).find((e) => localDayKey(e.uploadedAt) !== currentKey);
+  if (!match) return { students: [], uploadedAt: null };
+  const prevRes = await fetch(`${HISTORY_URL}?pathname=${encodeURIComponent(match.pathname)}`, { cache: "no-store" });
+  if (!prevRes.ok) throw new Error("status " + prevRes.status);
+  const prevData = await prevRes.json();
+  return { students: prevData.students || [], uploadedAt: match.uploadedAt };
+}
+
 function exportOutstandingBalance(students) {
   const rows = (students || []).map((s) => ({
     "Student ID": s.id,
@@ -972,7 +993,7 @@ function HistoryModal({ open, entries, loading, error, onSelect, onClose }) {
   );
 }
 
-function Dashboard({ students, payments, colFilters, outFilters, onColFilterChange, onOutFilterChange, trendRange, onTrendRangeChange, onOpenStudent, onClear, readOnly, dataMeta, previousStudents, previousMeta, saveError, onDismissSaveError, searchTerm, onSearchChange, viewingHistory, onOpenHistory, onExitHistory }) {
+function Dashboard({ students, payments, colFilters, outFilters, onColFilterChange, onOutFilterChange, trendRange, onTrendRangeChange, onOpenStudent, onClear, readOnly, dataMeta, saveError, onDismissSaveError, searchTerm, onSearchChange, viewingHistory, onOpenHistory, onExitHistory, onExportByCohort }) {
   return (
     <div className="dashboard">
       {saveError && (
@@ -1013,17 +1034,7 @@ function Dashboard({ students, payments, colFilters, outFilters, onColFilterChan
       <div className="bottom-row">
         {!readOnly && !viewingHistory && <button className="btn btn-outline" onClick={onClear}>Clear All and re-upload</button>}
         <button className="btn btn-outline" onClick={onOpenHistory}>View Past Reports</button>
-        <button
-          className="btn btn-primary"
-          onClick={() =>
-            exportWeeklySummaryByCohort(
-              students,
-              previousStudents,
-              dataMeta && dataMeta.uploadedAt,
-              previousMeta && previousMeta.uploadedAt
-            )
-          }
-        >
+        <button className="btn btn-primary" onClick={onExportByCohort}>
           Export by Cohort
         </button>
         <div className="footer-note mono">
@@ -1046,8 +1057,6 @@ function App() {
   const [userEmail, setUserEmail] = useState("");
   const [role, setRole] = useState("uploader");
   const [dataMeta, setDataMeta] = useState(null);
-  const [previousStudents, setPreviousStudents] = useState(null);
-  const [previousMeta, setPreviousMeta] = useState(null);
   const [saveError, setSaveError] = useState(null);
   const [emptyReason, setEmptyReason] = useState("empty");
 
@@ -1074,10 +1083,6 @@ function App() {
   const activeStudents = historyView ? historyView.students : students;
   const activePayments = historyView ? historyView.payments : payments;
   const activeDataMeta = historyView ? historyView.dataMeta : dataMeta;
-  const activePreviousStudents = historyView ? historyView.previousStudents : previousStudents;
-  const activePreviousMeta = historyView
-    ? (historyView.previousUploadedAt ? { uploadedAt: historyView.previousUploadedAt } : null)
-    : previousMeta;
 
   const decoratedStudents = useMemo(
     () => activeStudents.map((s) => { const b = badgeFor(s.status); return { ...s, badgeBg: b.bg, badgeFg: b.fg }; }),
@@ -1110,29 +1115,10 @@ function App() {
       if (!res.ok) throw new Error("status " + res.status);
       const data = await res.json();
 
-      let priorStudents = null;
-      let priorUploadedAt = null;
-      const index = historyEntries.findIndex((e) => e.pathname === pathname);
-      const priorEntry = index >= 0 ? historyEntries[index + 1] : null;
-      if (priorEntry) {
-        try {
-          const priorRes = await fetch(`${HISTORY_URL}?pathname=${encodeURIComponent(priorEntry.pathname)}`, { cache: "no-store" });
-          if (priorRes.ok) {
-            const priorData = await priorRes.json();
-            priorStudents = priorData.students || [];
-            priorUploadedAt = priorData.uploadedAt;
-          }
-        } catch (priorErr) {
-          // No earlier snapshot available for comparison — export will just show this week alone.
-        }
-      }
-
       setHistoryView({
         students: data.students || [],
         payments: (data.payments || []).map((p) => ({ ...p, date: p.date ? new Date(p.date) : null })),
         dataMeta: { uploadedAt: data.uploadedAt, uploadedBy: data.uploadedBy },
-        previousStudents: priorStudents,
-        previousUploadedAt: priorUploadedAt,
       });
       setColFilters(EMPTY_FILTERS); setOutFilters(EMPTY_FILTERS); setSearchTerm("");
       setHistoryModalOpen(false);
@@ -1146,6 +1132,18 @@ function App() {
   function exitHistory() {
     setHistoryView(null);
     setColFilters(EMPTY_FILTERS); setOutFilters(EMPTY_FILTERS); setSearchTerm("");
+  }
+
+  async function handleExportByCohort() {
+    const currentUploadedAt = activeDataMeta && activeDataMeta.uploadedAt;
+    if (!currentUploadedAt) return;
+    let dayBefore = { students: [], uploadedAt: null };
+    try {
+      dayBefore = await findDayBeforeReport(currentUploadedAt);
+    } catch (err) {
+      // Comparison data unavailable — export will just show the current week alone.
+    }
+    exportWeeklySummaryByCohort(decoratedStudents, dayBefore.students, currentUploadedAt, dayBefore.uploadedAt);
   }
 
   function handleSignIn(email, signInRole) {
@@ -1169,8 +1167,6 @@ function App() {
       setPayments((data.payments || []).map((p) => ({ ...p, date: p.date ? new Date(p.date) : null })));
       setNotifications(data.notifications || []);
       setDataMeta({ uploadedAt: data.uploadedAt, uploadedBy: data.uploadedBy });
-      setPreviousStudents(data.previous ? data.previous.students || [] : null);
-      setPreviousMeta(data.previous ? { uploadedAt: data.previous.uploadedAt } : null);
       setColFilters(EMPTY_FILTERS); setOutFilters(EMPTY_FILTERS);
       setPhase("loaded");
     } catch (err) {
@@ -1186,7 +1182,6 @@ function App() {
     setStudents([]); setPayments([]); setOpenId(null);
     setNotifications([]); setNotifOpen(false);
     setDataMeta(null); setSaveError(null);
-    setPreviousStudents(null); setPreviousMeta(null);
     setSearchTerm("");
     setHistoryView(null); setHistoryModalOpen(false); setHistoryEntries([]); setHistoryError(null);
   }
@@ -1212,7 +1207,6 @@ function App() {
     setOpenId(null);
     setNotifications([]); setNotifOpen(false);
     setDataMeta(null); setSaveError(null);
-    setPreviousStudents(null); setPreviousMeta(null);
     setHistoryView(null); setHistoryModalOpen(false); setHistoryEntries([]); setHistoryError(null);
     setPhase("upload");
   }
@@ -1278,8 +1272,6 @@ function App() {
 
     setNotifications(changes);
     setDataMeta({ uploadedAt, uploadedBy });
-    setPreviousStudents(prevData ? prevData.students || [] : null);
-    setPreviousMeta(prevData ? { uploadedAt: prevData.uploadedAt } : null);
     setSaveError(nextSaveError);
     setStudents(merged);
     setPayments(paymentsList);
@@ -1361,8 +1353,6 @@ function App() {
           onClear={handleClear}
           readOnly={role === "reviewer"}
           dataMeta={activeDataMeta}
-          previousStudents={activePreviousStudents}
-          previousMeta={activePreviousMeta}
           saveError={saveError}
           onDismissSaveError={() => setSaveError(null)}
           searchTerm={searchTerm}
@@ -1370,6 +1360,7 @@ function App() {
           viewingHistory={!!historyView}
           onOpenHistory={openHistory}
           onExitHistory={exitHistory}
+          onExportByCohort={handleExportByCohort}
         />
       )}
 
