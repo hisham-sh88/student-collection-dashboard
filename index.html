@@ -461,6 +461,85 @@ function exportWeeklySummary(students, previousStudents, currentDate, previousDa
   XLSX.writeFile(wb, `Weekly_Collection_Report_${currLabel.replace(/[\/\s()]+/g, "-")}.xlsx`);
 }
 
+const COHORT_INTAKES = ["September Intake", "January Intake", "April Intake"];
+
+function intakeFor(student) {
+  const c = String((student && student.cohort) || "").trim().toLowerCase();
+  if (c.startsWith("september")) return "September Intake";
+  if (c.startsWith("january")) return "January Intake";
+  if (c.startsWith("april")) return "April Intake";
+  return "Other Intake";
+}
+
+function buildCohortBlockRows(studentsForIntake, previousForIntake) {
+  const currentTotals = buildCategoryTotals(studentsForIntake);
+  const previousTotals = buildCategoryTotals(previousForIntake);
+
+  const categories = [...REPORT_CATEGORIES];
+  [currentTotals, previousTotals].forEach((totals) => {
+    totals.forEach((_, cat) => {
+      if (!categories.includes(cat)) categories.push(cat);
+    });
+  });
+
+  const empty = { out: 0, coll: 0, count: 0 };
+  const rows = categories.map((cat) => {
+    const curr = currentTotals.get(cat) || empty;
+    const prev = previousTotals.get(cat) || empty;
+    return [cat, prev.out, prev.count, curr.out, curr.count, curr.coll - prev.coll];
+  });
+
+  rows.push([
+    "Total AED..>>",
+    rows.reduce((a, r) => a + r[1], 0),
+    rows.reduce((a, r) => a + r[2], 0),
+    rows.reduce((a, r) => a + r[3], 0),
+    rows.reduce((a, r) => a + r[4], 0),
+    rows.reduce((a, r) => a + r[5], 0),
+  ]);
+
+  return rows;
+}
+
+function exportWeeklySummaryByCohort(students, previousStudents, currentDate, previousDate) {
+  const allStudents = students || [];
+  const allPrevious = previousStudents || [];
+
+  let prevLabel = formatDDMM(previousDate) || "Previous";
+  let currLabel = formatDDMM(currentDate) || "Current";
+  if (prevLabel === currLabel) {
+    prevLabel = `${prevLabel} (prev)`;
+    currLabel = `${currLabel} (latest)`;
+  }
+  const header = ["Description", `Fee o/s-${prevLabel}`, `Students-${prevLabel}`, `Fee o/s-${currLabel}`, `Students-${currLabel}`, "Collections"];
+
+  const intakesPresent = [...COHORT_INTAKES];
+  const hasOther = [...allStudents, ...allPrevious].some((s) => intakeFor(s) === "Other Intake");
+  if (hasOther) intakesPresent.push("Other Intake");
+
+  const aoa = [];
+  const merges = [];
+  intakesPresent.forEach((intake) => {
+    const currForIntake = allStudents.filter((s) => intakeFor(s) === intake);
+    const prevForIntake = allPrevious.filter((s) => intakeFor(s) === intake);
+
+    const titleRow = aoa.length;
+    aoa.push([`(${intake})`]);
+    merges.push({ s: { r: titleRow, c: 0 }, e: { r: titleRow, c: 5 } });
+
+    aoa.push(header);
+    buildCohortBlockRows(currForIntake, prevForIntake).forEach((row) => aoa.push(row));
+    aoa.push([]);
+  });
+
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws["!merges"] = merges;
+  ws["!cols"] = [{ wch: 16 }, { wch: 16 }, { wch: 12 }, { wch: 16 }, { wch: 12 }, { wch: 14 }];
+  XLSX.utils.book_append_sheet(wb, ws, "By Cohort");
+  XLSX.writeFile(wb, `Weekly_Collection_By_Cohort_${currLabel.replace(/[\/\s()]+/g, "-")}.xlsx`);
+}
+
 /* ============================== lib/sampleWorkbooks ============================== */
 
 const SAMPLE_STUDENTS = [
@@ -971,6 +1050,19 @@ function Dashboard({ students, payments, colFilters, outFilters, onColFilterChan
           }
         >
           Export to Excel
+        </button>
+        <button
+          className="btn btn-outline"
+          onClick={() =>
+            exportWeeklySummaryByCohort(
+              students,
+              previousStudents,
+              dataMeta && dataMeta.uploadedAt,
+              previousMeta && previousMeta.uploadedAt
+            )
+          }
+        >
+          Export by Cohort
         </button>
         <div className="footer-note mono">
           Source: Balance Report · SAP Student Accounts Report · Enrolled Students Report
