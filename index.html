@@ -410,14 +410,22 @@ function buildCategoryTotals(students) {
   return totals;
 }
 
-const COHORT_INTAKES = ["September Intake", "January Intake", "April Intake"];
+function cohortInfo(student) {
+  const raw = String((student && student.cohort) || "").trim();
+  const lower = raw.toLowerCase();
+  const yearMatch = raw.match(/(\d{4})/);
+  const year = yearMatch ? parseInt(yearMatch[1], 10) : null;
+  if (year === null) return null;
+
+  if (lower.startsWith("sep")) return { label: `September ${year} Intake`, academicYear: year, order: 0 };
+  if (lower.startsWith("jan")) return { label: `January ${year} Intake`, academicYear: year - 1, order: 1 };
+  if (lower.startsWith("apr")) return { label: `April ${year} Intake`, academicYear: year - 1, order: 2 };
+  return null;
+}
 
 function intakeFor(student) {
-  const c = String((student && student.cohort) || "").trim().toLowerCase();
-  if (c.startsWith("september")) return "September Intake";
-  if (c.startsWith("january")) return "January Intake";
-  if (c.startsWith("april")) return "April Intake";
-  return "Other Intake";
+  const info = cohortInfo(student);
+  return info ? info.label : "Other Intake";
 }
 
 function buildCohortBlockRows(studentsForIntake, previousForIntake) {
@@ -462,8 +470,16 @@ function exportWeeklySummaryByCohort(students, previousStudents, currentDate, pr
   }
   const header = ["Description", `Fee o/s-${prevLabel}`, `Students-${prevLabel}`, `Fee o/s-${currLabel}`, `Students-${currLabel}`, "Collections"];
 
-  const intakesPresent = [...COHORT_INTAKES];
-  const hasOther = [...allStudents, ...allPrevious].some((s) => intakeFor(s) === "Other Intake");
+  const cohortsByLabel = new Map();
+  let hasOther = false;
+  [...allStudents, ...allPrevious].forEach((s) => {
+    const info = cohortInfo(s);
+    if (info) cohortsByLabel.set(info.label, info);
+    else hasOther = true;
+  });
+  const intakesPresent = Array.from(cohortsByLabel.values())
+    .sort((a, b) => a.academicYear - b.academicYear || a.order - b.order)
+    .map((info) => info.label);
   if (hasOther) intakesPresent.push("Other Intake");
 
   const aoa = [];
