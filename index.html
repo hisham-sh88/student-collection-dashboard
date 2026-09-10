@@ -410,57 +410,6 @@ function buildCategoryTotals(students) {
   return totals;
 }
 
-function exportWeeklySummary(students, previousStudents, currentDate, previousDate) {
-  const currentTotals = buildCategoryTotals(students);
-  const previousTotals = buildCategoryTotals(previousStudents);
-
-  const categories = [...REPORT_CATEGORIES];
-  [currentTotals, previousTotals].forEach((totals) => {
-    totals.forEach((_, cat) => {
-      if (!categories.includes(cat)) categories.push(cat);
-    });
-  });
-
-  let prevLabel = formatDDMM(previousDate) || "Previous";
-  let currLabel = formatDDMM(currentDate) || "Current";
-  if (prevLabel === currLabel) {
-    prevLabel = `${prevLabel} (prev)`;
-    currLabel = `${currLabel} (latest)`;
-  }
-  const prevOutCol = `Fee o/s-${prevLabel}`;
-  const prevCountCol = `Students-${prevLabel}`;
-  const currOutCol = `Fee o/s-${currLabel}`;
-  const currCountCol = `Students-${currLabel}`;
-
-  const empty = { out: 0, coll: 0, count: 0 };
-  const rows = categories.map((cat) => {
-    const curr = currentTotals.get(cat) || empty;
-    const prev = previousTotals.get(cat) || empty;
-    return {
-      "Description": cat,
-      [prevOutCol]: prev.out,
-      [prevCountCol]: prev.count,
-      [currOutCol]: curr.out,
-      [currCountCol]: curr.count,
-      "Collections": curr.coll - prev.coll,
-    };
-  });
-
-  rows.push({
-    "Description": "Total AED..>>",
-    [prevOutCol]: rows.reduce((a, r) => a + r[prevOutCol], 0),
-    [prevCountCol]: rows.reduce((a, r) => a + r[prevCountCol], 0),
-    [currOutCol]: rows.reduce((a, r) => a + r[currOutCol], 0),
-    [currCountCol]: rows.reduce((a, r) => a + r[currCountCol], 0),
-    "Collections": rows.reduce((a, r) => a + r["Collections"], 0),
-  });
-
-  const wb = XLSX.utils.book_new();
-  const ws = XLSX.utils.json_to_sheet(rows);
-  XLSX.utils.book_append_sheet(wb, ws, "Weekly Summary");
-  XLSX.writeFile(wb, `Weekly_Collection_Report_${currLabel.replace(/[\/\s()]+/g, "-")}.xlsx`);
-}
-
 const COHORT_INTAKES = ["September Intake", "January Intake", "April Intake"];
 
 function intakeFor(student) {
@@ -538,6 +487,27 @@ function exportWeeklySummaryByCohort(students, previousStudents, currentDate, pr
   ws["!cols"] = [{ wch: 16 }, { wch: 16 }, { wch: 12 }, { wch: 16 }, { wch: 12 }, { wch: 14 }];
   XLSX.utils.book_append_sheet(wb, ws, "By Cohort");
   XLSX.writeFile(wb, `Weekly_Collection_By_Cohort_${currLabel.replace(/[\/\s()]+/g, "-")}.xlsx`);
+}
+
+function exportOutstandingBalance(students) {
+  const rows = (students || []).map((s) => ({
+    "Student ID": s.id,
+    "Name": s.name,
+    "Programme": s.programme,
+    "Level": s.level,
+    "Year": s.year,
+    "Cohort": s.cohort,
+    "Status": s.statusLabel,
+    "Email": s.email,
+    "Mobile": s.mobile,
+    "Outstanding (AED)": s.out,
+    "Balance As Of": formatDate(s.balanceDate) || "—",
+  }));
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.json_to_sheet(rows);
+  XLSX.utils.book_append_sheet(wb, ws, "Outstanding Balance");
+  const stamp = new Date().toISOString().slice(0, 10);
+  XLSX.writeFile(wb, `Outstanding_Balance_${stamp}.xlsx`);
 }
 
 /* ============================== lib/sampleWorkbooks ============================== */
@@ -763,7 +733,7 @@ function useFilterOptions(students) {
   }, [students]);
 }
 
-function StudentPanel({ variant, dark, title, allStudents, filters, onFilterChange, onOpenStudent, searchTerm }) {
+function StudentPanel({ variant, dark, title, allStudents, filters, onFilterChange, onOpenStudent, searchTerm, showExport, onExport }) {
   const { levels, statuses, cohorts } = useFilterOptions(allStudents);
 
   const years = useMemo(() => {
@@ -870,6 +840,11 @@ function StudentPanel({ variant, dark, title, allStudents, filters, onFilterChan
           <div className="footer-note mono">
             {filtered.length} {filtered.length === 1 ? "student" : "students"} · {variant === "collection" ? "AED" : "outstanding AED"} {fmt(total)}
           </div>
+          {showExport && (
+            <button className={dark ? "btn btn-outline" : "btn btn-primary"} style={{ marginLeft: "auto" }} onClick={() => onExport(filtered)}>
+              Export to Excel
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -1032,7 +1007,7 @@ function Dashboard({ students, payments, colFilters, outFilters, onColFilterChan
       </div>
       <div className="two-col">
         <StudentPanel variant="collection" dark={false} title="Collection Summary" allStudents={students} filters={colFilters} onFilterChange={onColFilterChange} onOpenStudent={onOpenStudent} searchTerm={searchTerm} />
-        <StudentPanel variant="outstanding" dark={true} title="Outstanding Balance" allStudents={students} filters={outFilters} onFilterChange={onOutFilterChange} onOpenStudent={onOpenStudent} searchTerm={searchTerm} />
+        <StudentPanel variant="outstanding" dark={true} title="Outstanding Balance" allStudents={students} filters={outFilters} onFilterChange={onOutFilterChange} onOpenStudent={onOpenStudent} searchTerm={searchTerm} showExport={!viewingHistory} onExport={exportOutstandingBalance} />
       </div>
       <TrendChart payments={payments} range={trendRange} onRangeChange={onTrendRangeChange} />
       <div className="bottom-row">
@@ -1040,19 +1015,6 @@ function Dashboard({ students, payments, colFilters, outFilters, onColFilterChan
         <button className="btn btn-outline" onClick={onOpenHistory}>View Past Reports</button>
         <button
           className="btn btn-primary"
-          onClick={() =>
-            exportWeeklySummary(
-              students,
-              previousStudents,
-              dataMeta && dataMeta.uploadedAt,
-              previousMeta && previousMeta.uploadedAt
-            )
-          }
-        >
-          Export to Excel
-        </button>
-        <button
-          className="btn btn-outline"
           onClick={() =>
             exportWeeklySummaryByCohort(
               students,
