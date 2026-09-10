@@ -450,7 +450,7 @@ function buildCohortBlockRows(studentsForIntake, previousForIntake) {
   return rows;
 }
 
-function exportWeeklySummaryByCohort(students, previousStudents, currentDate, previousDate) {
+function exportWeeklySummaryByCohort(students, previousStudents, currentDate, previousDate, exportedBy) {
   const allStudents = students || [];
   const allPrevious = previousStudents || [];
 
@@ -468,6 +468,15 @@ function exportWeeklySummaryByCohort(students, previousStudents, currentDate, pr
 
   const aoa = [];
   const merges = [];
+
+  aoa.push(["Student Collection Weekly Report"]);
+  merges.push({ s: { r: 0, c: 0 }, e: { r: 0, c: 5 } });
+  aoa.push([`Date: ${new Date().toLocaleString()}`]);
+  merges.push({ s: { r: 1, c: 0 }, e: { r: 1, c: 5 } });
+  aoa.push([`Exported by: ${exportedBy || "unknown"}`]);
+  merges.push({ s: { r: 2, c: 0 }, e: { r: 2, c: 5 } });
+  aoa.push([]);
+
   intakesPresent.forEach((intake) => {
     const currForIntake = allStudents.filter((s) => intakeFor(s) === intake);
     const prevForIntake = allPrevious.filter((s) => intakeFor(s) === intake);
@@ -1143,7 +1152,7 @@ function App() {
     } catch (err) {
       // Comparison data unavailable — export will just show the current week alone.
     }
-    exportWeeklySummaryByCohort(decoratedStudents, dayBefore.students, currentUploadedAt, dayBefore.uploadedAt);
+    exportWeeklySummaryByCohort(decoratedStudents, dayBefore.students, currentUploadedAt, dayBefore.uploadedAt, userEmail || "student.accounts@mdx.ac.ae");
   }
 
   function handleSignIn(email, signInRole) {
