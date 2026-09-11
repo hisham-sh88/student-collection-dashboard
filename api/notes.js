@@ -13,10 +13,29 @@ async function readNotes() {
   }
 }
 
+function normalizeNotes(raw) {
+  const out = {};
+  Object.keys(raw || {}).forEach((studentId) => {
+    const value = raw[studentId];
+    if (Array.isArray(value)) {
+      out[studentId] = value;
+    } else if (value && typeof value === "object") {
+      // Migrate the old single-note-per-student shape into a list.
+      out[studentId] = [{
+        id: "legacy-" + studentId,
+        text: value.text || "",
+        createdAt: value.updatedAt || new Date().toISOString(),
+        createdBy: value.updatedBy || "unknown",
+      }];
+    }
+  });
+  return out;
+}
+
 module.exports = async function handler(req, res) {
   if (req.method === "GET") {
     try {
-      const notes = await readNotes();
+      const notes = normalizeNotes(await readNotes());
       res.status(200).json({ notes });
     } catch (err) {
       res.status(500).json({ error: (err && err.message) || "Failed to load notes" });
@@ -28,21 +47,21 @@ module.exports = async function handler(req, res) {
     try {
       const body = req.body && typeof req.body === "object" ? req.body : JSON.parse(req.body || "{}");
       const studentId = String(body.studentId || "").trim();
-      if (!studentId) {
-        res.status(400).json({ error: "studentId is required" });
+      const text = String(body.text || "").trim();
+      if (!studentId || !text) {
+        res.status(400).json({ error: "studentId and text are required" });
         return;
       }
-      const notes = await readNotes();
-      const text = String(body.text || "").trim();
-      if (text) {
-        notes[studentId] = {
-          text,
-          updatedAt: new Date().toISOString(),
-          updatedBy: body.updatedBy || "unknown",
-        };
-      } else {
-        delete notes[studentId];
-      }
+      const notes = normalizeNotes(await readNotes());
+      const list = Array.isArray(notes[studentId]) ? notes[studentId] : [];
+      const entry = {
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        text,
+        createdAt: new Date().toISOString(),
+        createdBy: body.createdBy || "unknown",
+      };
+      list.unshift(entry);
+      notes[studentId] = list;
       await put("notes.json", JSON.stringify(notes), {
         access: "private",
         addRandomSuffix: false,
@@ -50,7 +69,7 @@ module.exports = async function handler(req, res) {
         contentType: "application/json",
         storeId: process.env.scd_data_STORE_ID,
       });
-      res.status(200).json({ ok: true, note: notes[studentId] || null });
+      res.status(200).json({ ok: true, note: entry });
     } catch (err) {
       res.status(500).json({ error: (err && err.message) || "Failed to save note" });
     }
