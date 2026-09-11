@@ -268,6 +268,30 @@ function mergeReports({ roster, collection, outstanding, lastPaymentDate, balanc
   return students;
 }
 
+/* ============================== lib/academicYear ============================== */
+
+function getAcademicYearBounds(refDate) {
+  const now = refDate || new Date();
+  const septIndex = 8;
+  const startYear = now.getMonth() >= septIndex ? now.getFullYear() : now.getFullYear() - 1;
+  return {
+    start: new Date(startYear, septIndex, 1),
+    end: new Date(startYear + 1, septIndex, 1),
+  };
+}
+
+function sumInAcademicYear(payments) {
+  const { start, end } = getAcademicYearBounds();
+  return (payments || []).reduce((sum, p) => (p.date && p.date >= start && p.date < end ? sum + p.amount : sum), 0);
+}
+
+function formatAcademicYearLabel() {
+  const { start, end } = getAcademicYearBounds();
+  const endInclusive = new Date(end.getTime() - 1);
+  const opts = { day: "numeric", month: "short", year: "numeric" };
+  return `${start.toLocaleDateString("en-GB", opts)} – ${endInclusive.toLocaleDateString("en-GB", opts)}`;
+}
+
 /* ============================== lib/trend ============================== */
 
 function isoWeek(d) {
@@ -756,17 +780,19 @@ function EmptyReviewScreen({ reason, onRetry, onSignOut }) {
   );
 }
 
-function StatCards({ students }) {
+function StatCards({ students, payments }) {
   const total = students.reduce((a, s) => a + s.coll, 0);
   const withPayments = students.filter((s) => s.coll > 0).length;
   const avg = withPayments ? total / withPayments : 0;
+  const academicYearTotal = useMemo(() => sumInAcademicYear(payments), [payments]);
+  const academicYearLabel = useMemo(() => formatAcademicYearLabel(), []);
 
   return (
     <div className="stat-grid">
       <div className="stat-card dark">
         <div className="stat-label">Total Collection</div>
-        <div className="stat-value">{fmt(total)}</div>
-        <div className="stat-sub">AED</div>
+        <div className="stat-value">{fmt(academicYearTotal)}</div>
+        <div className="stat-sub">AED · {academicYearLabel}</div>
       </div>
       <div className="stat-card">
         <div className="stat-label">Students with Payments</div>
@@ -1103,7 +1129,7 @@ function Dashboard({ students, payments, colFilters, outFilters, onColFilterChan
           <button type="button" onClick={onExitHistory}>Back to current</button>
         </div>
       )}
-      <StatCards students={students} />
+      <StatCards students={students} payments={payments} />
       <div className="search-bar">
         <svg width="16" height="16" viewBox="0 0 24 24" className="search-icon">
           <path
