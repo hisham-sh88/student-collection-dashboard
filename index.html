@@ -40,6 +40,15 @@ function formatDate(d) {
   return date.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
 }
 
+function formatDateTime(d) {
+  if (!d) return null;
+  const date = d instanceof Date ? d : new Date(d);
+  if (isNaN(date)) return null;
+  const datePart = date.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  const timePart = date.toLocaleTimeString("en-GB", { hour: "numeric", minute: "2-digit", hour12: true });
+  return `${datePart}, ${timePart}`;
+}
+
 function initials(name) {
   return String(name || "")
     .split(" ")
@@ -1038,7 +1047,7 @@ function StudentModal({ student, notes, canAddNote, onAddNote, onClose }) {
               noteList.map((n) => (
                 <div className="modal-note-item" key={n.id}>
                   <div className="modal-note-text">{n.text}</div>
-                  <div className="modal-note-meta">{formatDate(n.createdAt)} by {n.createdBy}</div>
+                  <div className="modal-note-meta">{formatDateTime(n.createdAt)} by {n.createdBy}</div>
                 </div>
               ))
             )}
