@@ -20,11 +20,12 @@
 </div>
 
 <script type="text/babel" data-presets="react">
-const { useState, useMemo } = React;
+const { useState, useMemo, useEffect } = React;
 const LOGO_URL = "https://raw.githubusercontent.com/hisham-sh88/student-collection-dashboard/main/assets/mdx-logo.png";
 const SAVE_URL = "/api/save-data";
 const LOAD_URL = "/api/load-data";
 const HISTORY_URL = "/api/history";
+const NOTES_URL = "/api/notes";
 
 /* ============================== lib/format ============================== */
 
@@ -937,11 +938,28 @@ function TrendChart({ payments, range, onRangeChange }) {
   );
 }
 
-function StudentModal({ student, onClose }) {
+function StudentModal({ student, note, canEditNote, onSaveNote, onClose }) {
+  const [draft, setDraft] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [saveMsg, setSaveMsg] = useState("");
+
+  useEffect(() => {
+    setDraft((note && note.text) || "");
+    setSaveMsg("");
+  }, [student && student.id, note]);
+
   if (!student) return null;
   const summary = student.out === 0
     ? "Account settled in full for the current academic year. No outstanding balance."
     : `AED ${fmt(student.coll)} collected against a balance of AED ${fmt(student.coll + student.out)}. AED ${fmt(student.out)} remains outstanding.`;
+
+  async function handleSave() {
+    setSaving(true);
+    setSaveMsg("");
+    const result = await onSaveNote(student.id, draft.trim());
+    setSaving(false);
+    setSaveMsg(result.ok ? "Note saved." : result.error);
+  }
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -984,6 +1002,36 @@ function StudentModal({ student, onClose }) {
         <div className="modal-summary">
           <div className="modal-field-label">Account Summary</div>
           <div className="modal-summary-text">{summary}</div>
+        </div>
+        <div className="modal-note">
+          <div className="modal-field-label">Note</div>
+          {canEditNote ? (
+            <React.Fragment>
+              <textarea
+                className="modal-note-input"
+                rows={3}
+                placeholder="Add a note about this account…"
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+              />
+              <div className="modal-note-actions">
+                <button type="button" className="btn btn-primary" onClick={handleSave} disabled={saving}>
+                  {saving ? "Saving…" : "Save Note"}
+                </button>
+                {saveMsg && <span className="modal-note-status">{saveMsg}</span>}
+              </div>
+              {note && note.updatedAt && (
+                <div className="modal-note-meta">Last updated {formatDate(note.updatedAt)} by {note.updatedBy}</div>
+              )}
+            </React.Fragment>
+          ) : (
+            <React.Fragment>
+              <div className="modal-note-text">{(note && note.text) || "No note added yet."}</div>
+              {note && note.updatedAt && (
+                <div className="modal-note-meta">Last updated {formatDate(note.updatedAt)} by {note.updatedBy}</div>
+              )}
+            </React.Fragment>
+          )}
         </div>
       </div>
     </div>
@@ -1106,6 +1154,7 @@ function App() {
   const [openId, setOpenId] = useState(null);
   const [notifications, setNotifications] = useState([]);
   const [notifOpen, setNotifOpen] = useState(false);
+  const [notes, setNotes] = useState({});
 
   const activeStudents = historyView ? historyView.students : students;
   const activePayments = historyView ? historyView.payments : payments;
@@ -1161,6 +1210,38 @@ function App() {
     setColFilters(EMPTY_FILTERS); setOutFilters(EMPTY_FILTERS); setSearchTerm("");
   }
 
+  async function loadNotes() {
+    try {
+      const res = await fetch(NOTES_URL, { cache: "no-store" });
+      if (!res.ok) throw new Error("status " + res.status);
+      const data = await res.json();
+      setNotes(data.notes || {});
+    } catch (err) {
+      setNotes({});
+    }
+  }
+
+  async function handleSaveNote(studentId, text) {
+    try {
+      const res = await fetch(NOTES_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ studentId, text, updatedBy: userEmail || "student.accounts@mdx.ac.ae" }),
+      });
+      if (!res.ok) throw new Error("status " + res.status);
+      const data = await res.json();
+      setNotes((prev) => {
+        const next = { ...prev };
+        if (data.note) next[studentId] = data.note;
+        else delete next[studentId];
+        return next;
+      });
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: "Couldn't save the note. Try again." };
+    }
+  }
+
   async function handleExportByCohort() {
     const currentUploadedAt = activeDataMeta && activeDataMeta.uploadedAt;
     if (!currentUploadedAt) return;
@@ -1195,6 +1276,7 @@ function App() {
       setNotifications(data.notifications || []);
       setDataMeta({ uploadedAt: data.uploadedAt, uploadedBy: data.uploadedBy });
       setColFilters(EMPTY_FILTERS); setOutFilters(EMPTY_FILTERS);
+      await loadNotes();
       setPhase("loaded");
     } catch (err) {
       setEmptyReason("error");
@@ -1303,6 +1385,7 @@ function App() {
     setStudents(merged);
     setPayments(paymentsList);
     setColFilters(EMPTY_FILTERS); setOutFilters(EMPTY_FILTERS);
+    await loadNotes();
     setPhase("loaded");
   }
 
@@ -1391,7 +1474,13 @@ function App() {
         />
       )}
 
-      <StudentModal student={openStudent} onClose={() => setOpenId(null)} />
+      <StudentModal
+        student={openStudent}
+        note={openStudent ? notes[openStudent.id] : null}
+        canEditNote={role === "uploader" && !historyView}
+        onSaveNote={handleSaveNote}
+        onClose={() => setOpenId(null)}
+      />
       <HistoryModal
         open={historyModalOpen}
         entries={historyEntries}
